@@ -1,6 +1,6 @@
 const T={id:{sub:"Portofolio video iklan & konten AI oleh @tiara_ai_influencer. Pilih kategori untuk melihat contoh karya.",wa:"Hubungi via WhatsApp",igp:"Lihat di Instagram",open:"Buka di Instagram",all:"Semua",fol:"pengikut",ex:"contoh",demo:"MODE DEMO — data contoh, bukan video asli.",empty:"Belum ada video di kategori ini.",msg:"Halo, saya lihat portofolio Tiara Porto dan tertarik bikin video."},
 en:{sub:"AI commercial & content video portfolio by @tiara_ai_influencer. Pick a category to explore the work.",wa:"Contact via WhatsApp",igp:"View on Instagram",open:"Open on Instagram",all:"All",fol:"followers",ex:"sample",demo:"DEMO MODE — sample data, not real videos.",empty:"No videos in this category yet.",msg:"Hi Tiara Porto, I'm interested in an AI video."}};
-const CEN={"Iklan Produk":"Product Ads","Kuliner":"Food","Promo App":"App Promo","Lainnya":"Others"};
+const CEN={"Iklan & UGC":"Ads & UGC","Cover Lagu":"Song Covers","Lainnya":"Others"};
 const q=new URLSearchParams(location.search);let L=q.get("lang")||localStorage.lang||"id",D,cur=q.get("cat")||"all";
 const $=s=>document.querySelector(s),cn=c=>L=="en"?(CEN[c]||c):c,esc=s=>(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const GR=["#ff2f7f,#6a1b9a","#ff8a65,#c2185b","#7c4dff,#ff4081","#00bcd4,#7b1fa2","#ffb300,#d81b60","#455a64,#ad1457"];
