@@ -52,7 +52,7 @@ async function categorize(items, cats) {
 module.exports = async (req, res) => {
   const cats = (process.env.CATEGORIES || "").split(",").map(s => s.trim()).filter(Boolean);
   const C = cats.length ? cats : DEF_CATS;
-  const token = process.env.IG_ACCESS_TOKEN;
+  const token = (process.env.IG_ACCESS_TOKEN || "").replace(/["'\s]/g, "");
   const isDemo = !token || (req.query && req.query.demo === "1");
   const base = { categories: C, wa: process.env.WA_NUMBER || "6287702700618", ig: "https://www.instagram.com/tiara_ai_influencer/" };
   res.setHeader("Cache-Control", "s-maxage=600, stale-while-revalidate=3600");
@@ -60,10 +60,13 @@ module.exports = async (req, res) => {
   if (isDemo) return res.status(200).json({ ...base, demo: true, profile: DP, items: demo(C) });
   try {
     if (memo.data && Date.now() - memo.at < 6e5) return res.status(200).json({ ...base, demo: false, profile: memo.prof, items: memo.data });
-    const uid = process.env.IG_USER_ID || "me";
+    const uid = (process.env.IG_USER_ID || "").replace(/["'\s]/g, "") || "me";
+    const fb = token.startsWith("EAA");
+    if (fb && uid === "me") throw new Error("IG_USER_ID wajib diisi untuk token EAA");
+    const G = fb ? "https://graph.facebook.com/v23.0" : "https://graph.instagram.com/v23.0";
     let prof = null;
-    try { const pj = await (await fetch(`https://graph.instagram.com/v23.0/${uid}?fields=username,name,biography,profile_picture_url,followers_count,media_count&access_token=${token}`)).json(); if (!pj.error) prof = pj; } catch (e) {}
-    let url = `https://graph.instagram.com/v23.0/${uid}/media?fields=id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp&limit=50&access_token=${token}`;
+    try { const pj = await (await fetch(`${G}/${uid}?fields=username,name,biography,profile_picture_url,followers_count,media_count&access_token=${token}`)).json(); if (!pj.error) prof = pj; else console.error("profile", pj.error.message); } catch (e) {}
+    let url = `${G}/${uid}/media?fields=id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp&limit=50&access_token=${token}`;
     let all = [];
     for (let p = 0; p < 4 && url; p++) {
       const j = await (await fetch(url)).json();

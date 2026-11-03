@@ -1,8 +1,9 @@
 // Perpanjang token IG (berlaku 60 hari). Dipanggil cron tiap tgl 1 & 15.
 // Jika VERCEL_API_TOKEN + VERCEL_PROJECT_ID diisi, token baru otomatis disimpan ke env Vercel.
 module.exports = async (req, res) => {
-  const t = process.env.IG_ACCESS_TOKEN;
+  const t = (process.env.IG_ACCESS_TOKEN || "").replace(/["'\s]/g, "");
   if (!t) return res.status(200).json({ ok: false, msg: "IG_ACCESS_TOKEN kosong" });
+  if (t.startsWith("EAA")) return res.status(200).json({ ok: true, msg: "Token EAA (System User) tidak kedaluwarsa, tidak perlu refresh" });
   const j = await (await fetch(`https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${t}`)).json();
   if (j.error) return res.status(200).json({ ok: false, msg: j.error.message });
   const vt = process.env.VERCEL_API_TOKEN, pid = process.env.VERCEL_PROJECT_ID;
