@@ -1,0 +1,29 @@
+*{box-sizing:border-box;margin:0}body{background:#0b0709;color:#f6eef2;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;max-width:900px;margin:auto}
+.hero{padding:22px 20px 18px;background:radial-gradient(circle at 80% 0,#ff3d8a44,transparent 60%),radial-gradient(circle at 0 100%,#9b2cff33,transparent 60%)}
+.top{display:flex;justify-content:space-between;align-items:center}.logo{font-weight:700;letter-spacing:.5px}.logo b{color:#ff4f97;margin-left:3px}
+#lang{background:#ffffff14;color:#fff;border:1px solid #ffffff30;border-radius:20px;padding:6px 14px;font-weight:600}
+h1{font-size:52px;margin:34px 0 8px;line-height:1;font-weight:800}h1 span{background:linear-gradient(90deg,#ff4f97,#ffb3d1);-webkit-background-clip:text;color:transparent}
+.hero p{color:#d9c3cd;font-size:16px;line-height:1.5}.btns{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.btn{display:inline-block;padding:12px 18px;border-radius:30px;text-decoration:none;font-weight:700;font-size:14px}
+.pink{background:linear-gradient(90deg,#ff2f7f,#ff6fa8);color:#fff;box-shadow:0 6px 24px #ff2f7f55}.ghost{border:1px solid #ff6fa8;color:#ffb3d1}
+.demo{margin-top:16px;background:#ffcc0022;border:1px dashed #ffcc00;color:#ffe27a;padding:8px 12px;border-radius:10px;font-size:13px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:14px 20px;position:sticky;top:0;background:#0b0709ee;backdrop-filter:blur(8px);z-index:2}
+.chips button{flex:none;background:#1c1217;color:#e8d5de;border:1px solid #3a2530;padding:8px 14px;border-radius:20px;font-size:13px}
+.chips button.on{background:#ff2f7f;border-color:#ff2f7f;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:6px 20px 30px}@media(min-width:640px){.grid{grid-template-columns:repeat(3,1fr)}}
+.card{position:relative;aspect-ratio:9/16;border-radius:14px;overflow:hidden;background:#1c1217;cursor:pointer}
+.card img,.card video{width:100%;height:100%;object-fit:cover}.card .ph{position:absolute;inset:0}
+.card .info{position:absolute;inset:auto 0 0 0;padding:30px 10px 10px;background:linear-gradient(transparent,#000c);font-size:12px}
+.card .info p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:#eee}
+.tag{display:inline-block;background:#ff2f7fcc;color:#fff;font-size:11px;padding:3px 8px;border-radius:10px;margin-bottom:5px;font-weight:600}
+.play{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;background:#0008;display:grid;place-items:center;font-size:12px}
+footer{text-align:center;padding:24px;color:#9c8791;font-size:13px}footer a{color:#ff6fa8;font-weight:700;display:block;margin-bottom:6px}
+.modal{position:fixed;inset:0;background:#000d;z-index:9;display:grid;place-items:center;padding:16px}.modal[hidden]{display:none}
+.box{background:#140c10;border:1px solid #3a2530;border-radius:18px;padding:14px;max-width:420px;width:100%;max-height:94vh;overflow:auto;position:relative}
+.box video{width:100%;aspect-ratio:9/16;max-height:62vh;background:#000;border-radius:12px;object-fit:contain}
+.box p{font-size:14px;color:#e8d5de;margin:6px 0 14px;white-space:pre-wrap}.x{position:absolute;top:8px;right:8px;z-index:2;background:#0009;color:#fff;border:0;border-radius:50%;width:34px;height:34px;font-size:16px}
+.empty{grid-column:1/-1;text-align:center;color:#9c8791;padding:40px}
+.prof{display:flex;gap:16px;align-items:center;margin-top:26px}.av{position:relative;flex:none;width:96px;height:96px;border-radius:50%;padding:3px;background:linear-gradient(135deg,#ff2f7f,#ffb3d1);box-shadow:0 0 18px #ff2f7f,0 0 40px #ff2f7f66}
+.av img,.av svg{width:100%;height:100%;border-radius:50%;object-fit:cover;border:3px solid #0b0709;display:block}.ex{position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);background:#ffcc00;color:#000;font-size:10px;font-weight:700;padding:1px 7px;border-radius:8px}
+.pi{min-width:0}.pi b{display:block;font-size:18px}.pi a{color:#ff6fa8;text-decoration:none;font-size:14px;margin-right:8px}.pi small{color:#d9c3cd;font-size:13px}.pi p{font-size:13px!important;margin-top:4px}
+.prof+h1{margin-top:22px}
