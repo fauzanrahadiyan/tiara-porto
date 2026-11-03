@@ -1,19 +1,19 @@
 // Tiara Porto - ambil video IG + kategori AI (Gemini)
-const DEF_CATS = ["Iklan Produk","Fashion","Kuliner","Cinematic","Promo App","Lainnya"];
+const DEF_CATS = ["Iklan & UGC","Motion Graphic","Cover Lagu","Short Film","Lifestyle","Lainnya"];
 const memo = global.__porto || (global.__porto = { cats: {}, data: null, at: 0 });
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 function demo(cats) {
   const caps = [
-    ["Iklan skincare glowing dibuat 100% AI ✨ #iklan #skincare", 0],
-    ["OOTD street style Tiara di Tokyo #fashion #ootd", 1],
-    ["Bakso mercon level 5, iklan kuliner AI #kuliner #food", 2],
-    ["Cinematic sunset di Bromo, short film AI #cinematic", 3],
-    ["Promo aplikasi kasir UMKM #promoapp #app", 4],
+    ["Mukbang UGC mie pedas level 8, iklan AI #ugc #iklan", 0],
+    ["Iseng gawe Motion Graphic saiki rek #motiongraphic", 1],
+    ["Cover lagu galau, AI visual x real voice #cover", 2],
+    ["Short film horor 50 detik #aishortfilm", 3],
+    ["Malmingan bareng Ferrari kuning #luxury #lifestyle", 4],
     ["Behind the scene bikin video AI #bts", 5],
-    ["Iklan parfum mewah versi AI #iklan", 0],
-    ["Hijab outfit lebaran #fashion", 1],
-    ["Es kopi susu gula aren commercial #kuliner", 2],
+    ["Iklan produk skincare glowing #iklan", 0],
+    ["Before After konten AI #motion", 1],
+    ["Liburan nang pantai isuk2 #lifestyle", 4],
   ];
   return caps.map(([c, i], n) => ({
     id: "demo" + n, caption: "[CONTOH] " + c, category: cats[Math.min(i, cats.length - 1)],
@@ -23,30 +23,69 @@ function demo(cats) {
   }));
 }
 
-async function categorize(items, cats) {
-  const todo = [];
-  for (const it of items) {
-    const m = (it.caption || "").match(/#porto_([a-z0-9_]+)/i);
-    if (m) { const c = cats.find(x => slug(x) === slug(m[1])); if (c) { it.category = c; continue; } }
-    if (memo.cats[it.id]) { it.category = memo.cats[it.id]; continue; }
-    todo.push(it);
-  }
-  const key = process.env.GEMINI_API_KEY;
-  if (todo.length && key) {
+// Aturan kata kunci gratis (Jawa/Indonesia/Inggris). Urutan = prioritas.
+const RULES = [
+  ["Cover Lagu", /\bcover\b|remake mv|music credit|song edit|\bguitar|gitar|ngeband|nyanyi|\bon the decks|mashup|\blagu|\bmv\b/i],
+  ["Short Film", /short ?film|aishortfilm|\bepisode\b|\bfilm\b|\bdrama\b|series/i],
+  ["Motion Graphic", /motion ?graphic|motiongraphic|before after|\b2d\b|\b3d\b|animasi|animation|\bvfx\b|remake|ai edit/i],
+  ["Iklan & UGC", /\bugc\b|iklan|mukbang|endorse|\bbrand\b|produk|product|diskon|klik link|affiliat|grwm|review|promo|launching|demo|aplikasi|\bapp\b|@ninjakitchen|@sharkhome|pempek|@pempek|kuliner/i],
+  ["Lifestyle", /luxury|lifestyle|liburan|holiday|vlog|daily|ootd|fashion|olahraga|sport|surfing|skating|flyboard|equestrian|ferrari|mclaren|brabus|bmw|mobil|\bcars?\b|heli|malming|foya|warehouse project|\bdwp|\bbwp|nightlife|halloween|sarapan|masak|skincare|makeup|mall|belanja|pantai|explore|jalan2|traveling|travel|gym|workout|baluran|kebun|dolen|pamer|tuku|birthday|podcast/i],
+];
+const ALIAS = { iklan: "Iklan & UGC", ugc: "Iklan & UGC", motion: "Motion Graphic", cover: "Cover Lagu", shortfilm: "Short Film", film: "Short Film", lifestyle: "Lifestyle", lainnya: "Lainnya" };
+function byKeyword(cap, cats) {
+  for (const [c, re] of RULES) if (cats.includes(c) && re.test(cap)) return c;
+  return cats.includes("Lainnya") ? "Lainnya" : cats[cats.length - 1];
+}
+function byHashtag(cap, cats) {
+  const m = cap.match(/#porto_([a-z0-9_]+)/i); if (!m) return null;
+  const k = slug(m[1]);
+  return cats.find(x => slug(x) === k) || (ALIAS[k] && cats.includes(ALIAS[k]) ? ALIAS[k] : null);
+}
+
+async function gemini(todo, cats, key) {
+  const prompt = `Kamu mengelompokkan video Instagram kreator AI (caption bahasa Jawa/Indonesia/Inggris). ` +
+    `Kategori yang boleh: ${cats.join(" | ")}.\nPanduan: iklan produk/UGC/endorse/promo/review/mukbang brand -> Iklan & UGC; ` +
+    `motion graphic/animasi/before-after/edit AI -> Motion Graphic; cover/remake lagu/musik/DJ -> Cover Lagu; ` +
+    `short film/episode/cerita bersambung -> Short Film; keseharian, jalan-jalan, mobil, kemewahan, olahraga, masak, konser -> Lifestyle; selain itu -> Lainnya.\n` +
+    `Jawab HANYA JSON objek {"<id>":"<kategori persis>"} untuk semua id.\n\n` +
+    todo.map(t => `${t.id}: ${(t.caption || "").slice(0, 250).replace(/\s+/g, " ")}`).join("\n");
+  let lastErr = "";
+  for (const model of ["gemini-2.5-flash", "gemini-2.0-flash"]) {
+    const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), 25000);
     try {
-      const prompt = `Kategorikan tiap caption video ke salah satu kategori: ${cats.join(", ")}. Jawab JSON saja: {"id":"kategori"}.\n` +
-        todo.map(t => `${t.id}: ${(t.caption || "").slice(0, 300).replace(/\n/g, " ")}`).join("\n");
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST", signal: ac.signal, headers: { "content-type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: model.startsWith("gemini-2.5") ? { thinkingBudget: 0 } : undefined } }),
       });
       const j = await r.json();
-      const map = JSON.parse(j.candidates[0].content.parts[0].text);
-      for (const t of todo) { const c = cats.find(x => x === map[t.id]); if (c) memo.cats[t.id] = c; }
-    } catch (e) { console.error("gemini", e.message); }
+      if (j.error) throw new Error(j.error.message);
+      const txt = j.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+      const map = JSON.parse(txt.replace(/^```(json)?|```$/g, "").trim());
+      return { map, err: "" };
+    } catch (e) { lastErr = `${model}: ${e.name === "AbortError" ? "timeout" : e.message}`.slice(0, 200); console.error("gemini", lastErr); }
+    finally { clearTimeout(tm); }
   }
-  for (const t of todo) t.category = memo.cats[t.id] || cats[cats.length - 1];
-  return items;
+  return { map: null, err: lastErr };
+}
+
+async function categorize(items, cats) {
+  let catError = "";
+  const todo = [];
+  for (const it of items) {
+    const cap = it.caption || "";
+    const h = byHashtag(cap, cats);
+    if (h) { it.category = h; it.catBy = "hashtag"; continue; }
+    if (memo.cats[it.id]) { it.category = memo.cats[it.id]; it.catBy = "ai"; continue; }
+    it.category = byKeyword(cap, cats); it.catBy = "keyword";
+    todo.push(it);
+  }
+  const key = (process.env.GEMINI_API_KEY || "").replace(/["'\s]/g, "");
+  if (!todo.length) return catError;
+  if (!key) return "GEMINI_API_KEY kosong, pakai kata kunci";
+  const { map, err } = await gemini(todo, cats, key);
+  if (!map) return err;
+  for (const t of todo) { const c = cats.find(x => x === map[t.id]); if (c) { memo.cats[t.id] = c; t.category = c; t.catBy = "ai"; } }
+  return catError;
 }
 
 module.exports = async (req, res) => {
@@ -59,7 +98,7 @@ module.exports = async (req, res) => {
   const DP = { demo: true, username: "tiara_ai_influencer", name: "Tiara (contoh)", biography: "AI influencer & kreator video iklan AI — Sidoarjo", followers_count: 12345, media_count: 9, profile_picture_url: "" };
   if (isDemo) return res.status(200).json({ ...base, demo: true, profile: DP, items: demo(C) });
   try {
-    if (memo.data && Date.now() - memo.at < 6e5) return res.status(200).json({ ...base, demo: false, profile: memo.prof, items: memo.data });
+    if (memo.data && Date.now() - memo.at < 6e5) return res.status(200).json({ ...base, demo: false, catError: memo.catError, profile: memo.prof, items: memo.data });
     const uid = (process.env.IG_USER_ID || "").replace(/["'\s]/g, "") || "me";
     const fb = token.startsWith("EAA");
     if (fb && uid === "me") throw new Error("IG_USER_ID wajib diisi untuk token EAA");
@@ -74,9 +113,9 @@ module.exports = async (req, res) => {
       all = all.concat(j.data || []); url = j.paging && j.paging.next;
     }
     const vids = all.filter(m => m.media_type === "VIDEO");
-    await categorize(vids, C);
-    memo.data = vids; memo.prof = prof; memo.at = Date.now();
-    res.status(200).json({ ...base, demo: false, profile: prof, items: vids });
+    const catError = await categorize(vids, C);
+    memo.data = vids; memo.prof = prof; memo.at = Date.now(); memo.catError = catError;
+    res.status(200).json({ ...base, demo: false, catError, profile: prof, items: vids });
   } catch (e) {
     res.setHeader("Cache-Control", "no-store");
     res.status(200).json({ ...base, demo: true, error: e.message, profile: DP, items: demo(C) });
