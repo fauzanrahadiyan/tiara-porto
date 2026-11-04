@@ -1,6 +1,6 @@
 // Radar Tiara — globe 3D ringan (d3-geo orthographic di canvas), dimuat hanya saat tab Radar dibuka.
 (function(){
-const CAT={influencer:["⭐ AI influencer","#ffd54a"],murid:["🎓 Calon murid","#3ee8a5"],viral:["🔥 Viral AI","#ff5a3c"],lain:["🎬 AI lain","#8b9cff"]};
+const CAT={influencer:["⭐ AI influencer","#ffd54a"],murid:["🎓 Calon murid","#3ee8a5"],viral:["🔥 Viral AI","#ff5a3c"],lain:["🎬 AI lain","#8b9cff"],collab:["🤝 Calon collab","#29d4ff"]};
 const ld=src=>new Promise((ok,no)=>{if(document.querySelector(`script[src="${src}"]`))return ok();const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=()=>no(new Error("Gagal memuat "+src));document.head.appendChild(s)});
 let LAND=null,RAF=0,STOP=null;
 async function libs(){await ld("https://cdn.jsdelivr.net/npm/d3-array@3");await ld("https://cdn.jsdelivr.net/npm/d3-geo@3");await ld("https://cdn.jsdelivr.net/npm/topojson-client@3");
@@ -27,7 +27,7 @@ function globe(cv,items,onPick){
   // titik
   pins=[];const c=P.invert([W/2,W/2]);
   for(const it of items){if(d3.geoDistance([it.lng,it.lat],c)>Math.PI/2-.05)continue;const [x,y]=P([it.lng,it.lat]);const col=(CAT[it.cat]||CAT.lain)[1];
-   const ph=(t/600+(it.lat*7%6))%(Math.PI*2),pulse=(Math.sin(ph)+1)/2,done=it.status!="new";
+   const ph=(t/600+(it.lat*7%6))%(Math.PI*2),pulse=(Math.sin(ph)+1)/2,done=it.status!="new";if(it.cat=="collab"){ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.strokeStyle=col;ctx.lineWidth=1.5;const q=7+pulse*6;ctx.strokeRect(-q,-q,q*2,q*2);ctx.restore()}
    ctx.beginPath();ctx.arc(x,y,5+pulse*9,0,7);ctx.fillStyle=col+(done?"18":"33");ctx.fill();
    ctx.beginPath();ctx.arc(x,y,sel===it?7:4.5,0,7);ctx.fillStyle=done?"#777":col;ctx.shadowColor=col;ctx.shadowBlur=mob?0:12;ctx.fill();ctx.shadowBlur=0;
    if(sel===it){ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke()}pins.push([x,y,it])}

@@ -2,6 +2,7 @@
 // PENTING: komentar TIDAK PERNAH diposting otomatis ke postingan orang. Admin yang menyalin & menempel manual.
 const db = require("./db");
 const U = require("./util");
+const CL = require("./collab");
 const TG = "https://graph.threads.net/v1.0";
 const ymd = () => U.wib().toISOString().slice(0, 10);
 const DEF = {
@@ -132,7 +133,7 @@ async function step(budgetMs = 35000) {
     } else if (job.phase === "pick") {
       job.cand.forEach(x => { x.cat = categorize(x.text, x.likes, x.comments); x.score = score(x); });
       // seimbangkan platform: urutkan skor, ambil top N
-      job.cand.sort((a, b) => b.score - a.score); job.cand = job.cand.slice(0, s.count); job.phase = "ai";
+      job.cand.sort((a, b) => b.score - a.score); job.pool = job.cand.slice(s.count, 150).map(x => ({ pf: x.pf, user: x.user, text: x.text.slice(0, 300), src: x.src })); job.cand = job.cand.slice(0, s.count); job.phase = "ai";
     } else if (job.phase === "ai") {
       const todo = job.cand.filter(x => !x.draft).slice(0, 5);
       if (!todo.length) { job.phase = "save"; continue; }
@@ -144,18 +145,26 @@ async function step(budgetMs = 35000) {
       const old = ((await db.get("rd_items")) || []).filter(x => now - x.found < 7 * 864e5 && !fresh.some(f => f.id === x.id));
       await db.set("rd_items", [...fresh, ...old].slice(0, 80));
       await db.set("rd_seen", [...fresh.map(x => x.id), ...seen].slice(0, 1500));
-      job.found = fresh.length; job.phase = "done"; job.finished = now;
-      if (fresh.length) try { await summary(fresh); } catch (e) { job.msgs.push("Telegram: " + e.message); }
+      try { await CL.collect(job.cand.concat(job.pool || [])); } catch (e) { job.msgs.push("Collab: " + e.message); }
+      job.pool = []; job.found = fresh.length; job.phase = "collab";
+    } else if (job.phase === "collab") {
+      if (left() < 25000 && !job.collabTry) { job.collabTry = 1; break; }
+      let cr = { found: 0, msgs: [] };
+      try { cr = await CL.run(Math.max(25000, left() - 3000)); } catch (e) { cr.msgs = ["Collab: " + e.message]; }
+      job.msgs.push(...cr.msgs); job.collab = cr.found; job.phase = "done"; job.finished = Date.now();
+      const fresh = ((await db.get("rd_items")) || []).filter(x => x.day === job.date && x.found >= job.started);
+      try { await summary(fresh, cr.found); } catch (e) { job.msgs.push("Telegram: " + e.message); }
     }
   }
   job.msgs = [...new Set(job.msgs)].slice(-8);
   await db.set("rd_job", job); return job;
 }
 const CATL = { influencer: "⭐ AI influencer", murid: "🎓 Calon murid", viral: "🔥 Viral AI", lain: "🎬 AI lain" };
-async function summary(items) {
+async function summary(items, collab = 0) {
   const site = (process.env.SITE_URL || "https://tiara-porto.vercel.app").replace(/\/$/, "");
+  if (!items.length && !collab) return null;
   const top = items.slice(0, 3).map((x, i) => `${i + 1}. ${CATL[x.cat]} · ${x.pf === "ig" ? "IG" : "Threads"} ${x.flag || ""}\n${x.url}\n💬 "${String(x.draft || "").slice(0, 120)}"`).join("\n\n");
-  return U.notifyTG(`🎯 Radar Tiara: ${items.length} postingan AI ramai hari ini\n\n${top || "(belum ada yang cocok)"}\n\nBuka radar: ${site}/admin#radar\nKomentar diposting manual oleh admin ya, biar aman dari spam/banned.`);
+  return U.notifyTG(`🎯 Radar Tiara: ${items.length} postingan AI ramai hari ini\n\n${top || "(belum ada yang cocok)"}\n\n🤝 Calon collab baru: ${collab} akun AI influencer (draf DM siap, kirim manual)\n\nBuka radar: ${site}/admin#radar\nKomentar diposting manual oleh admin ya, biar aman dari spam/banned.`);
 }
 async function cronJobs() {
   const s = await rdSettings(); if (!s.enabled) return { off: true };

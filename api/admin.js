@@ -6,6 +6,7 @@ const C = require("./_lib/content");
 const T = require("./_lib/tahap2");
 const TH = require("./_lib/threads");
 const RD = require("./_lib/radar");
+const CL = require("./_lib/collab");
 const MODELS = { seedance: "Seedance 2.5", grok: "Grok Imagine 1.5", omni: "Gemini Omni 1.1 Flash" };
 const ip = req => String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "local";
 const cookie = (res, v, age) => res.setHeader("Set-Cookie", `tp_adm=${v}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${process.env.VERCEL ? "; Secure" : ""}`);
@@ -161,6 +162,16 @@ Tulis captionnya saja tanpa penjelasan.`);
         if (b.op === "rewrite") return res.json({ item: await RD.rewrite(U.str(b.id, 80)) });
       }
       return res.json(await RD.rdData());
+    }
+    // ---------- PEMBURU COLLAB (draf DM, TIDAK dikirim otomatis) ----------
+    if (action === "collab") {
+      if (req.method === "POST") {
+        if (b.op === "settings") await CL.saveSettings(b);
+        if (b.op === "run") { const r = await CL.run(45000); return res.json({ run: r, ...(await CL.clData()) }); }
+        if (b.op === "status") await CL.setStatus(U.str(b.id, 80), String(b.status || ""));
+        if (b.op === "rewrite") return res.json({ item: await CL.rewrite(U.str(b.id, 80)) });
+      }
+      return res.json(await CL.clData());
     }
     // ---------- TIKTOK ----------
     if (action === "tiktok_callback") {
