@@ -4,6 +4,7 @@ const db = require("./_lib/db");
 const U = require("./_lib/util");
 const C = require("./_lib/content");
 const T = require("./_lib/tahap2");
+const TH = require("./_lib/threads");
 const MODELS = { seedance: "Seedance 2.5", grok: "Grok Imagine 1.5", omni: "Gemini Omni 1.1 Flash" };
 const ip = req => String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "local";
 const cookie = (res, v, age) => res.setHeader("Set-Cookie", `tp_adm=${v}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${process.env.VERCEL ? "; Secure" : ""}`);
@@ -164,6 +165,24 @@ Tulis captionnya saja tanpa penjelasan.`);
         if (b.op === "retry") { const qq = (await db.get("queue")) || []; const it = qq.find(x => x.id === b.id); if (!it || it.videoDeleted) return res.status(400).json({ error: "Video sudah tidak tersimpan" }); it.tt = { status: "pending", log: "Dikirim ulang" }; await db.set("queue", qq); return res.json({ result: await T.tiktokDue(b.id) }); }
       }
       return res.json(await T.ttStatus());
+    }
+    // ---------- THREADS ----------
+    if (action === "threads_callback") {
+      try { await TH.thCallback(q); res.statusCode = 302; res.setHeader("Location", "/admin?th=ok"); }
+      catch (e) { res.statusCode = 302; res.setHeader("Location", "/admin?th=" + encodeURIComponent(e.message.slice(0, 150))); }
+      return res.end();
+    }
+    if (action === "threads") {
+      if (req.method === "POST") {
+        if (b.op === "connect") return res.json({ url: await TH.thAuthUrl() });
+        if (b.op === "disconnect") await db.del("th_token");
+        if (b.op === "settings") { const s = await TH.thSettings(); Object.assign(s, { crosspost: !!b.crosspost, replies: !!b.replies, replyMode: b.replyMode === "auto" ? "auto" : "review", daily: !!b.daily, dailyMode: b.dailyMode === "review" ? "review" : "auto" }); await db.set("th_settings", s); }
+        if (b.op === "postnow") return res.json({ post: await TH.textNow(!!b.review), ...(await TH.thStatus()) });
+        if (b.op === "sendtext") return res.json({ post: await TH.sendText(b.id, b.text), ...(await TH.thStatus()) });
+        if (b.op === "deltext") { const l = (await db.get("th_texts")) || []; await db.set("th_texts", l.filter(x => x.id !== b.id)); }
+        if (b.op === "retry") { const qq = (await db.get("queue")) || []; const it = qq.find(x => x.id === b.id); if (!it || it.videoDeleted) return res.status(400).json({ error: "Video sudah tidak tersimpan" }); it.th = { status: "pending", log: "Dikirim ulang" }; await db.set("queue", qq); return res.json({ result: await TH.threadsDue() }); }
+      }
+      return res.json(await TH.thStatus());
     }
     // ---------- UNTUNG-RUGI, TREN, LAPORAN ----------
     if (action === "profit") {

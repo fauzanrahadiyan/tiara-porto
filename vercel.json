@@ -23,6 +23,10 @@
       "destination": "/api/admin?action=tiktok_callback"
     },
     {
+      "source": "/threads-callback",
+      "destination": "/api/admin?action=threads_callback"
+    },
+    {
       "source": "/admin",
       "destination": "/admin.html"
     },

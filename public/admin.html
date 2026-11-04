@@ -6,7 +6,7 @@
 <script src="common.js"></script><script>
 let ME,TAB="orders";const ST={brief:"Brief baru",approved:"Menunggu bayar",proof:"Cek bukti transfer",paid:"Lunas",production:"Produksi",preview:"Preview dikirim",accepted:"Disetujui klien",done:"Selesai",rejected:"Ditolak"};
 const A=(a,d)=>api("/api/admin?action="+a,d);const app=h=>$("#app").innerHTML=h;
-async function boot(){ME=await A("me");if(!ME.who)return login();$("#nav").hidden=false;$("#out").hidden=false;const tt=new URLSearchParams(location.search).get("tt");if(tt){history.replaceState(null,"","/admin");toast(tt=="ok"?"TikTok terhubung ✓":"TikTok: "+tt,tt!="ok");TAB="konten"}const c=location.hash.slice(1);c&&c.startsWith("TP-")?openOrder(c):go(TAB)}
+async function boot(){ME=await A("me");if(!ME.who)return login();$("#nav").hidden=false;$("#out").hidden=false;const tt=new URLSearchParams(location.search).get("tt");const th=new URLSearchParams(location.search).get("th");if(th){history.replaceState(null,"","/admin");toast(th=="ok"?"Threads terhubung ✓":"Threads: "+th,th!="ok");TAB="konten"}if(tt){history.replaceState(null,"","/admin");toast(tt=="ok"?"TikTok terhubung ✓":"TikTok: "+tt,tt!="ok");TAB="konten"}const c=location.hash.slice(1);c&&c.startsWith("TP-")?openOrder(c):go(TAB)}
 function login(){app(`<div class="card" style="margin-top:30px"><h2>Masuk Admin</h2><p class="muted" style="margin-bottom:12px">Khusus pemilik Tiara Porto.</p>
  ${ME.google?`<div id="gbtn" style="margin-bottom:12px"></div><p class="muted" style="text-align:center;margin-bottom:10px">— atau —</p>`:""}
  <form id="lf"><label>Password admin</label><input class="in" type="password" name="p" autocomplete="current-password"><button class="btn">Masuk</button></form></div>
@@ -61,7 +61,7 @@ async function openOrder(c){location.hash=c;const o=await A("order&c="+c);const 
  let fnUrl="";if($("#fn")){dropper($("#fn"),"admin",u=>{fnUrl=u;$("#sendFn").disabled=false});$("#sendFn").onclick=()=>act("final",{url:fnUrl})}}
 
 // ===== KONTEN TIARA =====
-async function konten(){const [g,qd,ttc]=await Promise.all([A("golden").catch(e=>({slots:["12:15","19:30"],reason:e.message})),A("queue"),tiktokCard()]);
+async function konten(){const [g,qd,ttc,thc]=await Promise.all([A("golden").catch(e=>({slots:["12:15","19:30"],reason:e.message})),A("queue"),tiktokCard(),threadsCard()]);
  const icon={queued:"⏳",scheduled:"🗓️",processing:"⚙️",posted:"✅",failed:"❌"};
  app(`<h2>Konten Tiara</h2>
  <div class="card"><div class="row"><h3>⭐ Jam Emas Hari Ini</h3><button class="btn2 sm" id="rg" style="flex:0 0 auto;margin:0">↻ Hitung ulang</button></div><div class="chips">${g.slots.map(s=>`<span class="chip on">${s} WIB</span>`).join("")}</div><p class="muted">${esc(g.reason||"")} ${g.source?`(sumber: ${esc(g.source)})`:""}</p></div>
@@ -71,9 +71,10 @@ async function konten(){const [g,qd,ttc]=await Promise.all([A("golden").catch(e=
   <label>Jadwal manual (opsional — kosongkan untuk otomatis di Jam Emas)</label><input class="in" type="datetime-local" id="at">
   <button class="btn" id="add" disabled>🗓️ Jadwalkan Otomatis</button></div>
  ${ttc}
- <div class="card"><h3>Kalender Konten</h3>${qd.queue.length?qd.queue.map(i=>`<div class="li" style="cursor:default"><div style="min-width:0"><b>${icon[i.status]||""} ${i.scheduledAt?tgl(i.scheduledAt):"Menunggu slot"}</b><div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px">${esc((i.caption||"").split("\n")[0])}</div>${i.log?`<div class="muted ${i.status=="failed"?"err":""}">${esc(i.log)}</div>`:""}${i.permalink?`<a href="${esc(i.permalink)}" target="_blank" class="muted">Lihat di IG</a>`:""}${i.tt?`<div class="muted ${i.tt.status=="failed"?"err":""}">🎵 TikTok: ${esc(i.tt.log||i.tt.status)}</div>`:""}${i.tt&&i.tt.status=="failed"&&!i.videoDeleted?`<button class="btn2 sm" data-ttr="${i.id}">Kirim ulang ke TikTok</button>`:""}</div>
+ ${thc}
+ <div class="card"><h3>Kalender Konten</h3>${qd.queue.length?qd.queue.map(i=>`<div class="li" style="cursor:default"><div style="min-width:0"><b>${icon[i.status]||""} ${i.scheduledAt?tgl(i.scheduledAt):"Menunggu slot"}</b><div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px">${esc((i.caption||"").split("\n")[0])}</div>${i.log?`<div class="muted ${i.status=="failed"?"err":""}">${esc(i.log)}</div>`:""}${i.permalink?`<a href="${esc(i.permalink)}" target="_blank" class="muted">Lihat di IG</a>`:""}${i.tt?`<div class="muted ${i.tt.status=="failed"?"err":""}">🎵 TikTok: ${esc(i.tt.log||i.tt.status)}</div>`:""}${i.tt&&i.tt.status=="failed"&&!i.videoDeleted?`<button class="btn2 sm" data-ttr="${i.id}">Kirim ulang ke TikTok</button>`:""}${i.th?`<div class="muted ${i.th.status=="failed"?"err":""}">🧵 Threads: ${esc(i.th.log||i.th.status)}</div>`:""}${i.th&&i.th.status=="failed"&&!i.videoDeleted?`<button class="btn2 sm" data-thr="${i.id}">Kirim ulang ke Threads</button>`:""}</div>
   <div style="flex:0 0 auto">${i.status!="posted"?`<button class="btn sm" data-now="${i.id}">Posting Sekarang</button><br><button class="btn2 sm" data-del="${i.id}">Hapus</button>`:""}</div></div>`).join(""):`<p class="muted">Belum ada antrean.</p>`}</div>`);
- tiktokBind();
+ tiktokBind();threadsBind();
  $("#rg").onclick=async()=>{toast("Menghitung jam emas…");await A("golden&force=1");konten()};
  let vurl="";dropper($("#vu"),"admin",u=>{vurl=u;$("#add").disabled=false});
  $("#gc").onclick=async()=>{const b=$("#gc");b.disabled=true;b.textContent="Menulis caption…";try{$("#cap").value=(await A("caption",{idea:$("#idea").value})).caption}catch(e){toast(e.message,1)}b.disabled=false;b.textContent="✨ Buat Caption AI"};
@@ -83,7 +84,7 @@ async function konten(){const [g,qd,ttc]=await Promise.all([A("golden").catch(e=
 
 // ===== KOMENTAR =====
 async function komen(){const d=await A("comments"),s=d.settings;
- const item=(c,kind)=>`<div class="card" style="background:#10101a"><b>@${esc(c.user)}</b> <span class="muted">${tgl(c.t)}</span>${c.lead?` <span class="badge">Calon klien</span>`:""}<p>${esc(c.text)}</p>${kind!="h"?`<p class="muted">${esc(c.reason||"")}</p><textarea class="in" data-tx="${c.id}" style="min-height:60px">${esc(c.reply||"")}</textarea><button class="btn sm" data-send="${c.id}">Kirim balasan</button><button class="btn2 sm" data-dis="${c.id}">Abaikan</button>`:`<p class="pink" style="margin-top:4px">↳ ${esc(c.reply)}</p>`}</div>`;
+ const item=(c,kind)=>`<div class="card" style="background:#10101a"><b>@${esc(c.user)}</b> ${c.platform=="threads"?`<span class="badge">🧵 Threads</span> `:""}<span class="muted">${tgl(c.t)}</span>${c.lead?` <span class="badge">Calon klien</span>`:""}<p>${esc(c.text)}</p>${kind!="h"?`<p class="muted">${esc(c.reason||"")}</p><textarea class="in" data-tx="${c.id}" style="min-height:60px">${esc(c.reply||"")}</textarea><button class="btn sm" data-send="${c.id}">Kirim balasan</button><button class="btn2 sm" data-dis="${c.id}">Abaikan</button>`:`<p class="pink" style="margin-top:4px">↳ ${esc(c.reply)}</p>`}</div>`;
  app(`<h2>Balas Komentar Otomatis</h2><div class="card">
  <div class="sw"><b>Aktif</b><input type="checkbox" id="en" ${s.enabled?"checked":""} style="width:22px;height:22px;accent-color:#ff2d95"></div>
  <label>Mode</label><div class="chips" id="md"><button class="chip ${s.mode!="auto"?"on":""}" data-m="review">Tinjau dulu</button><button class="chip ${s.mode=="auto"?"on":""}" data-m="auto">Full otomatis</button></div>
@@ -119,6 +120,27 @@ async function tiktokCard(){const t=await A("tiktok").catch(e=>({err:e.message})
  <div class="sw" style="margin-top:10px"><b>Otomatis kirim ke TikTok setelah tayang di IG</b><input type="checkbox" id="tte" ${s.enabled?"checked":""} style="width:22px;height:22px;accent-color:#ff2d95"></div>
  <label>Privasi video TikTok</label><select class="in" id="ttp">${[["SELF_ONLY","Privat (Hanya saya) — wajib sebelum lolos audit"],["PUBLIC_TO_EVERYONE","Publik (setelah lolos audit)"],["FOLLOWER_OF_CREATOR","Hanya follower"],["MUTUAL_FOLLOW_FRIENDS","Teman"]].map(([v,l])=>`<option value="${v}" ${s.privacy==v?"selected":""}>${l}</option>`).join("")}</select>
  <button class="btn sm" id="tts">Simpan TikTok</button><p class="muted" style="margin-top:6px">Caption TikTok dibuat Gemini dari caption IG. Selama aplikasi TikTok belum lolos audit, video masuk sebagai privat — buka TikTok lalu ubah ke Publik.</p></div>`}
+const SW=(id,on,t)=>`<div class="sw" style="margin-top:8px"><b>${t}</b><input type="checkbox" id="${id}" ${on?"checked":""} style="width:22px;height:22px;accent-color:#ff2d95"></div>`;
+const CH=(id,v,opts)=>`<div class="chips" id="${id}">${opts.map(([k,l])=>`<button class="chip ${v==k?"on":""}" data-v="${k}">${l}</button>`).join("")}</div>`;
+async function threadsCard(){const t=await A("threads").catch(e=>({err:e.message}));if(t.err)return `<div class="card err">${esc(t.err)}</div>`;const s=t.settings;
+ const tx=(t.texts||[]).map(p=>`<div class="card" style="background:#10101a"><span class="muted">${tgl(p.t)} · ${p.status=="posted"?"✅ Terposting":p.status=="review"?"📝 Menunggu dicek":"❌ "+esc(p.log||"Gagal")}${p.soft?" · 💬 soft-sell":""}</span>${p.status=="posted"?`<p>${esc(p.text)}</p>`:`<textarea class="in" data-tht="${p.id}" style="min-height:70px">${esc(p.text)}</textarea><button class="btn sm" data-ths="${p.id}">Posting</button><button class="btn2 sm" data-thx="${p.id}">Hapus</button>`}</div>`).join("");
+ return `<div class="card"><div class="row"><h3>🧵 Threads</h3><span style="text-align:right"><span class="badge">${!t.env?"Belum diatur":t.connected?"Terhubung":"Belum terhubung"}</span></span></div>
+ ${!t.env?`<p class="muted">Isi <b>THREADS_APP_ID</b> & <b>THREADS_APP_SECRET</b> di Vercel dulu (lihat PANDUAN-THREADS).</p>`:t.connected?`<p class="ok">✓ Akun Threads: @${esc(t.user||"terhubung")}</p>`:`<p class="muted">Klik tombol di bawah lalu izinkan akses di Threads.</p>`}
+ ${t.env?`<button class="btn2 sm" id="thc">${t.connected?"🔄 Hubungkan ulang":"🔗 Hubungkan Threads"}</button>${t.connected?`<button class="btn2 sm" id="thd">Putuskan</button>`:""}`:""}
+ ${SW("th1",s.crosspost,"Otomatis kirim Reels ke Threads setelah tayang di IG")}
+ ${SW("th2",s.replies,"Balas komentar Threads")}${CH("thm",s.replyMode,[["review","Tinjau dulu"],["auto","Full otomatis"]])}
+ ${SW("th3",s.daily,"Posting teks harian (12.00 & 20.00 WIB)")}${CH("thdm",s.dailyMode,[["auto","Langsung posting"],["review","Tinjau dulu"]])}
+ <button class="btn sm" id="ths">Simpan Threads</button>${t.connected?`<button class="btn2 sm" id="thn">✍️ Buat & posting sekarang</button>`:""}
+ <p class="muted" style="margin-top:6px">Teks dibuat Gemini sebagai Tiara: tips & behind the scenes video AI. Sekitar 1 dari 4 posting menyelipkan info Kursus Private secara halus. Balasan "Tinjau dulu" muncul di tab Komentar.</p>
+ ${tx?`<h3 style="margin-top:10px">Posting teks terakhir</h3>${tx}`:""}</div>`}
+function threadsBind(){const ch=id=>{const e=$("#"+id+" .chip.on");return e?e.dataset.v:""};["thm","thdm"].forEach(id=>$$("#"+id+" .chip").forEach(b=>b.onclick=()=>$$("#"+id+" .chip").forEach(x=>x.classList.toggle("on",x==b))));
+ if($("#thc"))$("#thc").onclick=async()=>{try{location.href=(await A("threads",{op:"connect"})).url}catch(e){toast(e.message,1)}};
+ if($("#thd"))$("#thd").onclick=async()=>{if(!confirm("Putuskan Threads?"))return;await A("threads",{op:"disconnect"});konten()};
+ if($("#ths"))$("#ths").onclick=async()=>{try{await A("threads",{op:"settings",crosspost:$("#th1").checked,replies:$("#th2").checked,replyMode:ch("thm"),daily:$("#th3").checked,dailyMode:ch("thdm")});toast("Tersimpan ✓")}catch(e){toast(e.message,1)}};
+ if($("#thn"))$("#thn").onclick=async()=>{const b=$("#thn");b.disabled=true;b.textContent="Menulis…";try{const r=await A("threads",{op:"postnow",review:ch("thdm")=="review"});toast(r.post.status=="posted"?"Terposting ✓":r.post.status=="review"?"Draft siap dicek":r.post.log,r.post.status=="failed");konten()}catch(e){toast(e.message,1);b.disabled=false}};
+ $$("[data-ths]").forEach(b=>b.onclick=async()=>{b.disabled=true;try{const r=await A("threads",{op:"sendtext",id:b.dataset.ths,text:$(`[data-tht="${b.dataset.ths}"]`).value});toast(r.post.status=="posted"?"Terposting ✓":r.post.log,r.post.status!="posted");konten()}catch(e){toast(e.message,1);b.disabled=false}});
+ $$("[data-thx]").forEach(b=>b.onclick=async()=>{await A("threads",{op:"deltext",id:b.dataset.thx});konten()});
+ $$("[data-thr]").forEach(b=>b.onclick=async()=>{b.disabled=true;try{const r=await A("threads",{op:"retry",id:b.dataset.thr});toast(r.result.done?.[0]?.log||"Diproses");konten()}catch(e){toast(e.message,1);b.disabled=false}})}
 function tiktokBind(){if($("#ttc"))$("#ttc").onclick=async()=>{try{location.href=(await A("tiktok",{op:"connect"})).url}catch(e){toast(e.message,1)}};
  if($("#ttd"))$("#ttd").onclick=async()=>{if(!confirm("Putuskan TikTok?"))return;await A("tiktok",{op:"disconnect"});konten()};
  if($("#tts"))$("#tts").onclick=async()=>{try{await A("tiktok",{op:"settings",enabled:$("#tte").checked,privacy:$("#ttp").value});toast("Tersimpan ✓")}catch(e){toast(e.message,1)}};

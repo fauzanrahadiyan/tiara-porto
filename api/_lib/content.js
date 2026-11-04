@@ -76,6 +76,7 @@ async function stepItem(it) {
       it.mediaId = p.id; it.status = "posted"; it.postedAt = Date.now(); it.log = "Sudah tayang ✅";
       try { const m = await U.ig(p.id, { fields: "permalink" }); it.permalink = m.permalink; } catch (e) {}
       let keep = false; try { keep = await T.ttMark(it); } catch (e) { it.tt = { status: "failed", log: e.message }; }
+      try { if (await require("./threads").thMark(it)) keep = true; } catch (e) { it.th = { status: "failed", log: e.message }; }
       if (!keep) { await U.delBlob(it.videoUrl); it.videoDeleted = true; } // kalau TikTok ON, video dihapus setelah terkirim ke TikTok
       await U.notifyWA(`✅ Reels sudah tayang di @tiara_ai_influencer\n${it.permalink || ""}`);
       return it;
@@ -185,8 +186,8 @@ async function sendReply(id, text) {
   const pending = (await db.get("cpending")) || [], hist = (await db.get("chistory")) || [], flagged = (await db.get("cflagged")) || [];
   let rec = pending.find(x => x.id === id) || flagged.find(x => x.id === id); if (!rec) throw new Error("Komentar tidak ada di daftar");
   rec.reply = U.str(text || rec.reply, 500);
-  const p = await U.ig(`${rec.parent || id}/replies`, { message: rec.reply }, "POST"); rec.replyId = p.id; rec.t = Date.now();
+  const p = rec.platform === "threads" ? await require("./threads").thReply(id, rec.reply) : await U.ig(`${rec.parent || id}/replies`, { message: rec.reply }, "POST"); rec.replyId = p.id; rec.t = Date.now();
   hist.unshift(rec);
   await db.set("cpending", pending.filter(x => x.id !== id)); await db.set("cflagged", flagged.filter(x => x.id !== id)); await db.set("chistory", hist.slice(0, 300));
 }
-module.exports = { computeGolden, autoSchedule, publishDue, processComments, sendReply, commentSettings, DEFAULT_SLOTS };
+module.exports = { classify, computeGolden, autoSchedule, publishDue, processComments, sendReply, commentSettings, DEFAULT_SLOTS };

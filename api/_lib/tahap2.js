@@ -101,7 +101,7 @@ async function tiktokDue(onlyId) {
     if (!it.tt || !["pending", "processing"].includes(it.tt.status)) continue;
     if (onlyId && it.id !== onlyId) continue;
     try { await ttStep(it); } catch (e) { it.tt.tries = (it.tt.tries || 0) + 1; it.tt.log = e.message; if (it.tt.tries >= 3) { it.tt.status = "failed"; await U.notifyWA("⚠️ Gagal kirim ke TikTok: " + e.message.slice(0, 200)); } }
-    if (["posted", "failed"].includes(it.tt.status) && !it.videoDeleted) { await U.delBlob(it.videoUrl); it.videoDeleted = true; }
+    if (["posted", "failed"].includes(it.tt.status) && !it.videoDeleted && !(it.th && ["pending", "processing"].includes(it.th.status))) { await U.delBlob(it.videoUrl); it.videoDeleted = true; }
     done.push({ id: it.id, tt: it.tt.status, log: it.tt.log });
     if (done.length >= 1) break; // 1 video per putaran (batas waktu)
   }
