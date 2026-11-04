@@ -126,9 +126,40 @@ async function processComments(maxReplies = 6) {
   const since = Date.now() - 3 * 864e5; let replied = 0, checked = 0;
   for (const m of media) {
     if (replied >= maxReplies || checked >= 15) break;
-    const cs = (await U.ig(`${m.id}/comments`, { fields: "id,text,username,timestamp,replies{username}", limit: 50 })).data || [];
+    const cs = (await U.ig(`${m.id}/comments`, { fields: "id,text,username,timestamp,replies.limit(50){id,text,username,timestamp}", limit: 50 })).data || [];
     for (const c of cs) {
       if (replied >= maxReplies || checked >= 15) break;
+      // --- balasan di dalam utas ---
+      const reps = (c.replies?.data || []).slice().sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+      const myT = reps.filter(x => x.username === me).map(x => Date.parse(x.timestamp));
+      const tiaraIn = c.username === me || myT.length > 0;
+      const firstMine = c.username === me ? Date.parse(c.timestamp) : (myT[0] || Infinity);
+      const tKey = "cthread:" + c.id;
+      let tCount = Math.max(myT.length, Number(await db.get(tKey)) || 0, 0);
+      for (const x of reps) {
+        if (replied >= maxReplies || checked >= 15) break;
+        if (seen.has(x.id)) continue;
+        const xt = String(x.text || ""), xtime = Date.parse(x.timestamp);
+        const mention = new RegExp("@" + me.replace(/[.]/g, "\\.") + "\\b", "i").test(xt);
+        const afterTiara = tiaraIn && xtime > firstMine;
+        const already = myT.some(t => t > xtime); // Tiara sudah membalas setelah ini
+        const xkw = kws.some(k => xt.toLowerCase().replace(/[^a-z0-9 ]/g, "").trim() === k);
+        if (x.username === me || xtime < since || xkw || already || !(mention || afterTiara)) { seen.add(x.id); continue; }
+        if (tCount >= 2) { seen.add(x.id); continue; } // maks 2 balasan Tiara per utas
+        checked++;
+        let r; try { r = await classify({ username: x.username, text: xt + (c.username !== x.username ? ` (balasan di utas komentar @${c.username}: "${String(c.text || "").slice(0, 150)}")` : "") }, m.caption); } catch (e) { break; }
+        seen.add(x.id);
+        let reply = r.balasan || "";
+        if (reply && !reply.toLowerCase().includes("@" + x.username.toLowerCase())) reply = `@${x.username} ${reply}`;
+        const rec = { id: x.id, parent: c.id, thread: true, media: m.id, user: x.username, text: xt, t: Date.now(), reply, reason: r.alasan || "", lead: !!r.calon_klien };
+        if (r.aman !== "aman" || !rec.reply) { flagged.unshift(rec); continue; }
+        tCount++; await db.set(tKey, tCount);
+        if (st.mode !== "auto") { pending.unshift(rec); continue; }
+        if (await db.incr("rl:reply:" + new Date().toISOString().slice(0, 13), 3700) > (st.maxPerHour || 50)) { pending.unshift(rec); break; }
+        try { const p = await U.ig(`${c.id}/replies`, { message: rec.reply }, "POST"); rec.replyId = p.id; hist.unshift(rec); replied++; }
+        catch (e) { rec.reason = e.message; flagged.unshift(rec); }
+        await sleep(2000 + Math.random() * 4000);
+      }
       if (seen.has(c.id)) continue;
       const mine = c.username === me || (c.replies?.data || []).some(r => r.username === me);
       const old = Date.parse(c.timestamp) < since;
@@ -154,7 +185,7 @@ async function sendReply(id, text) {
   const pending = (await db.get("cpending")) || [], hist = (await db.get("chistory")) || [], flagged = (await db.get("cflagged")) || [];
   let rec = pending.find(x => x.id === id) || flagged.find(x => x.id === id); if (!rec) throw new Error("Komentar tidak ada di daftar");
   rec.reply = U.str(text || rec.reply, 500);
-  const p = await U.ig(`${id}/replies`, { message: rec.reply }, "POST"); rec.replyId = p.id; rec.t = Date.now();
+  const p = await U.ig(`${rec.parent || id}/replies`, { message: rec.reply }, "POST"); rec.replyId = p.id; rec.t = Date.now();
   hist.unshift(rec);
   await db.set("cpending", pending.filter(x => x.id !== id)); await db.set("cflagged", flagged.filter(x => x.id !== id)); await db.set("chistory", hist.slice(0, 300));
 }
