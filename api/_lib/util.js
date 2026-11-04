@@ -79,11 +79,30 @@ async function ig(path, params = {}, method = "GET") {
   return j;
 }
 
-// ===== WhatsApp ke Fauzan (CallMeBot, gratis) =====
+// ===== Notifikasi Telegram (gratis) =====
+async function notifyTG(text) {
+  const tok = clean(process.env.TELEGRAM_BOT_TOKEN);
+  if (!tok) return null;
+  try {
+    let chat = clean(process.env.TELEGRAM_CHAT_ID) || await db.get("tg_chat_id");
+    if (!chat) {
+      const u = await (await fetch(`https://api.telegram.org/bot${tok}/getUpdates`)).json();
+      const last = (u.result || []).reverse().find(x => x.message && x.message.chat);
+      if (!last) return { ok: false, msg: "Kirim pesan 'halo' dulu ke bot Telegram-mu" };
+      chat = String(last.message.chat.id); await db.set("tg_chat_id", chat);
+    }
+    const r = await fetch(`https://api.telegram.org/bot${tok}/sendMessage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }) });
+    return { ok: r.ok, via: "telegram" };
+  } catch (e) { console.error("tg", e.message); return { ok: false, msg: e.message }; }
+}
+
+// ===== Notifikasi ke Fauzan: Telegram dulu, lalu WA CallMeBot =====
 async function notifyWA(text) {
+  const tg = await notifyTG(text);
+  if (tg && tg.ok) return tg;
   const key = clean(process.env.CALLMEBOT_APIKEY);
   const phone = clean(process.env.ADMIN_WA || "6287702700618");
-  if (!key) return { ok: false, msg: "CALLMEBOT_APIKEY belum diisi" };
+  if (!key) return tg || { ok: false, msg: "TELEGRAM_BOT_TOKEN / CALLMEBOT_APIKEY belum diisi" };
   try {
     const r = await fetch(`https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encodeURIComponent(text)}&apikey=${encodeURIComponent(key)}`);
     return { ok: r.ok };
