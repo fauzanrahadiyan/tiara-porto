@@ -30,23 +30,24 @@ async function gemini(parts, { json = false, timeout = 40000, search = false } =
   const key = clean(process.env.GEMINI_API_KEY);
   if (!key) throw new Error("GEMINI_API_KEY belum diisi");
   if (typeof parts === "string") parts = [{ text: parts }];
-  let last = "";
-  for (const model of MODELS()) {
+  let last = "", errs = [];
+  const tries = search && !json ? [...MODELS().slice(0, 2).map(m => [m, true]), ...MODELS().map(m => [m, false])] : MODELS().map(m => [m, false]);
+  for (const [model, useSearch] of tries) {
     const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), timeout);
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: "POST", signal: ac.signal, headers: { "content-type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({ contents: [{ parts }], generationConfig: json ? { responseMimeType: "application/json" } : {}, ...(search && !json ? { tools: [{ google_search: {} }] } : {}) }),
+        body: JSON.stringify({ contents: [{ parts }], generationConfig: json ? { responseMimeType: "application/json" } : {}, ...(useSearch ? { tools: [{ google_search: {} }] } : {}) }),
       });
       const j = await r.json();
       if (j.error) throw new Error(j.error.message);
       const txt = (j.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("").trim();
       if (!txt) throw new Error("jawaban kosong");
       return json ? JSON.parse(txt.replace(/^```(json)?|```$/g, "").trim()) : txt;
-    } catch (e) { last = `${model}: ${e.name === "AbortError" ? "timeout" : e.message}`.slice(0, 200); console.error("gemini", last); }
+    } catch (e) { last = `${model}: ${e.name === "AbortError" ? "timeout" : e.message}`.slice(0, 160); errs.push(last); console.error("gemini", last); }
     finally { clearTimeout(tm); }
   }
-  throw new Error("Gemini gagal (" + last + ")");
+  throw new Error("Gemini gagal (" + (errs.find(x => !/no longer available/.test(x)) || last) + ")");
 }
 // Upload video ke Gemini Files API lalu tunggu siap (untuk QC video)
 async function geminiFile(url, mime = "video/mp4") {
