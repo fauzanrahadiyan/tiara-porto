@@ -18,7 +18,8 @@ function render(){txt();prof();chips();$("#ordbtn").href=ordUrl(cur);$("#ordbtn"
  ${v.thumbnail_url?`<img loading="lazy" src="${esc(v.thumbnail_url)}" alt="">`:`<div class="ph" style="background:linear-gradient(160deg,${GR[(gi<0?0:gi)%6]})"></div>`}
  <span class="play">▶</span><div class="info"><span class="tag">${esc(cn(v.category))}</span><p>${esc(v.caption)}</p></div></div>`}).join(""):`<div class="empty">${T[L].empty}</div>`;
  $("#grid").querySelectorAll(".card").forEach(c=>c.onclick=()=>openV(D.items[c.dataset.n]))}
-function openV(v){$("#vid").src=v.media_url;$("#vid").poster=v.thumbnail_url||"";$("#mcat").textContent=cn(v.category);$("#mcap").textContent=v.caption||"";$("#mlink").href=v.permalink;$("#morder").href=ordUrl(v.category);$("#modal").hidden=false;$("#vid").play().catch(()=>{})}
-$("#close").onclick=()=>{$("#vid").pause();$("#modal").hidden=true};$("#modal").onclick=e=>{if(e.target.id=="modal")$("#close").onclick()};
+function openV(v){$("#vid").src=v.media_url;$("#vid").poster=v.thumbnail_url||"";$("#mcat").textContent=cn(v.category);$("#mcap").textContent=v.caption||"";$("#mlink").href=v.permalink;$("#morder").href=ordUrl(v.category);$("#modal").hidden=false;if(!history.state||!history.state.v)history.pushState({v:1},"");$("#vid").play().catch(()=>{})}
+function hideV(){$("#vid").pause();$("#modal").hidden=true}
+$("#close").onclick=()=>{if(history.state&&history.state.v)history.back();else hideV()};window.addEventListener("popstate",()=>{if(!$("#modal").hidden)hideV()});$("#modal").onclick=e=>{if(e.target.id=="modal")$("#close").onclick()};
 $("#lang").onclick=()=>{L=L=="id"?"en":"id";localStorage.lang=L;render()};
 fetch("/api/media"+(q.get("demo")=="1"?"?demo=1":"")).then(r=>r.json()).then(d=>{D=d;$("#demo").hidden=!d.demo;render();if(q.get("open"))openV(D.items[+q.get("open")])});
