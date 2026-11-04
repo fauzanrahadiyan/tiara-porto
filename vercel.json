@@ -19,6 +19,10 @@
   },
   "rewrites": [
     {
+      "source": "/tiktok-callback",
+      "destination": "/api/admin?action=tiktok_callback"
+    },
+    {
       "source": "/admin",
       "destination": "/admin.html"
     },

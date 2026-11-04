@@ -7,7 +7,7 @@ const PAID = ["paid", "production", "preview", "accepted", "done"];
 // ================= TIKTOK =================
 const TT = "https://open.tiktokapis.com/v2";
 const ttEnv = () => ({ key: U.clean(process.env.TIKTOK_CLIENT_KEY), sec: U.clean(process.env.TIKTOK_CLIENT_SECRET) });
-const ttRedirect = () => (process.env.TIKTOK_REDIRECT_URI || (process.env.SITE_URL || "https://tiara-porto.vercel.app").replace(/\/$/, "") + "/api/admin?action=tiktok_callback").trim();
+const ttRedirect = () => (process.env.TIKTOK_REDIRECT_URI || (process.env.SITE_URL || "https://tiara-porto.vercel.app").replace(/\/$/, "") + "/tiktok-callback").trim();
 const DEF_TT = { enabled: false, privacy: "SELF_ONLY" };
 async function ttSettings() { return { ...DEF_TT, ...((await db.get("tt_settings")) || {}) }; }
 async function ttStatus() {
