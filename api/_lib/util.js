@@ -139,4 +139,4 @@ async function delBlob(url) {
   if (!url || !process.env.BLOB_READ_WRITE_TOKEN || !/blob\.vercel-storage\.com/.test(url)) return;
   try { const { del } = require("@vercel/blob"); await del(url); } catch (e) { console.error("del blob", e.message); }
 }
-module.exports = { DURS, DEFAULT_CONFIG, getConfig, gemini, geminiFile, IG, ig, notifyWA, ADMIN_EMAILS, makeSession, readSession, safeEq, body, code, rp, str, baseUrl, wib, clean, delBlob, MODELS };
+module.exports = { DURS, DEFAULT_CONFIG, getConfig, gemini, geminiFile, IG, ig, notifyWA, notifyTG, ADMIN_EMAILS, makeSession, readSession, safeEq, body, code, rp, str, baseUrl, wib, clean, delBlob, MODELS };

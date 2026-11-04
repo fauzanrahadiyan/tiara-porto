@@ -13,7 +13,7 @@ async function thSettings() { return { ...DEF, ...((await db.get("th_settings"))
 async function thAuthUrl() {
   const e = env(); if (!e.id || !e.secret) throw new Error("THREADS_APP_ID / THREADS_APP_SECRET belum diisi di Vercel");
   const state = require("crypto").randomBytes(12).toString("hex"); await db.set("th_state", state, 900);
-  return "https://threads.net/oauth/authorize?" + new URLSearchParams({ client_id: e.id, redirect_uri: redirect(), scope: "threads_basic,threads_content_publish,threads_manage_replies,threads_read_replies", response_type: "code", state });
+  return "https://threads.net/oauth/authorize?" + new URLSearchParams({ client_id: e.id, redirect_uri: redirect(), scope: "threads_basic,threads_content_publish,threads_manage_replies,threads_read_replies" + (((await db.get("rd_settings")) || {}).thSearch ? ",threads_keyword_search" : ""), response_type: "code", state });
 }
 async function jget(url) { const j = await (await fetch(url)).json(); if (j.error) throw new Error("Threads: " + (j.error.message || j.error.type || "error")); return j; }
 async function thCallback(q) {

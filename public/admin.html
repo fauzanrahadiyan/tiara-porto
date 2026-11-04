@@ -2,11 +2,11 @@
 <title>Admin · Tiara Porto</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="agency.css"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta property="og:title" content="Tiara Porto · Jasa Video AI"><meta property="og:description" content="Portofolio &amp; pemesanan video AI @tiara_ai_influencer"><meta property="og:image" content="https://tiara-porto.vercel.app/og-image.jpg"><meta property="og:type" content="website"><meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#1a1220"></head><body>
 <div class="top"><span class="logo">Tiara<b>Porto</b> <span class="badge">Admin</span></span><button class="btn2 sm" id="out" hidden style="margin:0">Keluar</button></div>
 <div class="wrap" id="app"><p class="muted">Memuat…</p></div>
-<nav class="nav" id="nav" hidden><button data-t="orders" class="on">🎬 Jasa AI</button><button data-t="konten">📱 Konten</button><button data-t="komen">💬 Komentar</button><button data-t="lapor">💰 Laporan</button><button data-t="atur">⚙️ Atur</button></nav>
+<nav class="nav" id="nav" hidden><button data-t="orders" class="on">🎬 Jasa AI</button><button data-t="konten">📱 Konten</button><button data-t="komen">💬 Komentar</button><button data-t="radar">🎯 Radar</button><button data-t="lapor">💰 Laporan</button><button data-t="atur">⚙️ Atur</button></nav>
 <script src="common.js"></script><script>
 let ME,TAB="orders";const ST={brief:"Brief baru",approved:"Menunggu bayar",proof:"Cek bukti transfer",paid:"Lunas",production:"Produksi",preview:"Preview dikirim",accepted:"Disetujui klien",done:"Selesai",rejected:"Ditolak"};
 const A=(a,d)=>api("/api/admin?action="+a,d);const app=h=>$("#app").innerHTML=h;
-async function boot(){ME=await A("me");if(!ME.who)return login();$("#nav").hidden=false;$("#out").hidden=false;const tt=new URLSearchParams(location.search).get("tt");const th=new URLSearchParams(location.search).get("th");if(th){history.replaceState(null,"","/admin");toast(th=="ok"?"Threads terhubung ✓":"Threads: "+th,th!="ok");TAB="konten"}if(tt){history.replaceState(null,"","/admin");toast(tt=="ok"?"TikTok terhubung ✓":"TikTok: "+tt,tt!="ok");TAB="konten"}const c=location.hash.slice(1);c&&c.startsWith("TP-")?openOrder(c):go(TAB)}
+async function boot(){ME=await A("me");if(!ME.who)return login();$("#nav").hidden=false;$("#out").hidden=false;const tt=new URLSearchParams(location.search).get("tt");const th=new URLSearchParams(location.search).get("th");if(th){history.replaceState(null,"","/admin");toast(th=="ok"?"Threads terhubung ✓":"Threads: "+th,th!="ok");TAB="konten"}if(tt){history.replaceState(null,"","/admin");toast(tt=="ok"?"TikTok terhubung ✓":"TikTok: "+tt,tt!="ok");TAB="konten"}const c=location.hash.slice(1);if(c=="radar")TAB="radar";c&&c.startsWith("TP-")?openOrder(c):go(TAB)}
 function login(){app(`<div class="card" style="margin-top:30px"><h2>Masuk Admin</h2><p class="muted" style="margin-bottom:12px">Khusus pemilik Tiara Porto.</p>
  ${ME.google?`<div id="gbtn" style="margin-bottom:12px"></div><p class="muted" style="text-align:center;margin-bottom:10px">— atau —</p>`:""}
  <form id="lf"><label>Password admin</label><input class="in" type="password" name="p" autocomplete="current-password"><button class="btn">Masuk</button></form></div>
@@ -15,7 +15,7 @@ function login(){app(`<div class="card" style="margin-top:30px"><h2>Masuk Admin<
  if(ME.google){const s=document.createElement("script");s.src="https://accounts.google.com/gsi/client";s.onload=()=>{google.accounts.id.initialize({client_id:ME.google,callback:async r=>{try{await A("login",{credential:r.credential});boot()}catch(x){toast(x.message,1)}}});google.accounts.id.renderButton($("#gbtn"),{theme:"filled_black",size:"large",width:300})};document.head.appendChild(s)}}
 $("#out").onclick=async()=>{await A("logout",{});location.reload()};
 $$("#nav button").forEach(b=>b.onclick=()=>{location.hash="";go(b.dataset.t)});
-function go(t){TAB=t;$$("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t==t));({orders:orders,konten:konten,komen:komen,lapor:laporan,atur:atur})[t]().catch(e=>app(`<div class="card err">${esc(e.message)}</div>`));scrollTo(0,0)}
+function go(t){TAB=t;window.RADAR&&RADAR.stop();$$("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t==t));({orders:orders,konten:konten,komen:komen,radar:radar,lapor:laporan,atur:atur})[t]().catch(e=>app(`<div class="card err">${esc(e.message)}</div>`));scrollTo(0,0)}
 
 // ===== JASA AI VIDEO =====
 async function orders(){const d=await A("orders"),s=d.stats;
@@ -112,6 +112,43 @@ async function atur(){const c=await A("config"),D=[10,15,30,60];
   try{await A("config",{prices:P,revisiFee:{hemat:$("#rh").value,premium:$("#rpm").value},bank:{nama:$("#bn").value,norek:$("#br").value,atasNama:$("#ba").value,catatan:$("#bc").value}});toast("Tersimpan ✓")}catch(e){toast(e.message,1)}};
  $("#tw").onclick=async()=>{const r=await A("testwa");toast(r.ok?"Terkirim, cek Telegram/WhatsApp":"Gagal: "+(r.msg||"cek TELEGRAM_BOT_TOKEN"),!r.ok)}}
 
+
+// ===== RADAR TIARA (draf komentar, admin posting manual) =====
+let RD=null,RF={pf:"all",cat:"all"};
+const RFLAG={ig:'<span class="badge" style="background:linear-gradient(90deg,#f58529,#dd2a7b)">Instagram</span>',th:'<span class="badge" style="background:#000;border:1px solid #666">Threads</span>'};
+async function radar(){if(!window.RADAR)await new Promise((ok,no)=>{const s=document.createElement("script");s.src="radar.js";s.onload=ok;s.onerror=()=>no(new Error("radar.js gagal dimuat"));document.head.appendChild(s)});
+ RD=window.RADAR_MOCK||await A("radar");const s=RD.settings,j=RD.job||{};const C=RADAR.CAT;
+ app(`<h2>🎯 Radar Tiara</h2><p class="muted">Postingan AI yang lagi ramai di Instagram & Threads, lengkap dengan draf komentar Tiara sesuai bahasa postingannya.</p>
+ ${(j.msgs||[]).length?`<div class="warn">${j.msgs.map(esc).join("<br>")}</div>`:""}
+ <div class="card" style="padding:10px;position:relative"><canvas id="rdg" style="width:100%;max-width:560px;aspect-ratio:1;display:block;margin:auto;touch-action:none;cursor:grab"></canvas>
+ <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;font-size:12px">${Object.values(C).map(([l,c])=>`<span><b style="color:${c}">●</b> ${l}</span>`).join("")}</div>
+ <p class="muted" style="text-align:center;font-size:12px">${RD.items.length} postingan · status: ${j.phase=="done"?"selesai "+(j.finished?tgl(j.finished):""):j.phase?"berjalan ("+j.phase+")":"belum jalan"} · geser bola untuk memutar, klik titik untuk buka</p><div id="rdc"></div></div>
+ <div class="card"><div class="f" id="rdf">${[["all","Semua"],["ig","Instagram"],["th","Threads"]].map(([v,l])=>`<button class="chip ${RF.pf==v?"on":""}" data-pf="${v}">${l}</button>`).join("")} ${[["all","Semua kategori"],...Object.entries(C).map(([k,v])=>[k,v[0]])].map(([v,l])=>`<button class="chip ${RF.cat==v?"on":""}" data-cat="${v}">${l}</button>`).join("")}</div><div id="rdl"></div></div>
+ <div class="card"><h3>⚙️ Pengaturan Radar</h3>${SW("rd1",s.enabled,"Radar harian aktif (sekitar 07.00 WIB)")}
+ <label>Jumlah postingan per hari</label><input class="in" type="number" id="rdn" min="3" max="15" value="${s.count}">
+ <label>Hashtag Instagram (pisahkan koma)</label><textarea class="in" id="rdh" rows="3">${esc(s.hashtags.join(", "))}</textarea>
+ <label>Kata kunci Threads (pisahkan koma)</label><textarea class="in" id="rdk" rows="3">${esc(s.keywords.join(", "))}</textarea>
+ ${SW("rd2",s.thSearch,"Izin pencarian Threads (threads_keyword_search) sudah ditambah — lalu klik Hubungkan ulang Threads di tab Konten")}
+ <button class="btn sm" id="rds">Simpan</button> <button class="btn2 sm" id="rdr">🎯 Jalankan radar sekarang</button>
+ <p class="muted" style="margin-top:6px">IG membatasi 30 hashtag unik per 7 hari, jadi hashtag diputar bergantian tiap hari. Lokasi titik hanyalah PERKIRAAN dari bahasa & isi postingan.</p></div>
+ <p class="muted" style="text-align:center;font-size:12px">🛡️ Komentar tidak pernah diposting otomatis. Admin menyalin & menempel sendiri supaya akun Tiara aman dari spam/banned.</p>`);
+ const card=it=>{const [l,c]=C[it.cat]||C.lain;return `<div class="card" style="border:1px solid ${c}55;margin:8px 0" data-id="${esc(it.id)}">
+  <div>${RFLAG[it.pf]||""} <span class="badge" style="background:${c}33;color:${c}">${l}</span> <span class="badge">${it.flag||"🌐"} ${esc(it.lang||"")}</span> ${it.status=="done"?'<span class="badge">✓ dikomentari</span>':it.status=="skip"?'<span class="badge">dilewati</span>':""}</div>
+  <p style="margin:6px 0"><b>${esc(it.user?"@"+it.user:it.src||"")}</b> <span class="muted">❤️ ${it.likes||0} · 💬 ${it.comments||0}</span></p>
+  <p class="muted" style="font-style:italic">"${esc(String(it.text).slice(0,220))}${it.text.length>220?"…":""}"</p>
+  <p class="muted" style="font-size:11px">📍 ±${esc(it.city?it.city+", ":"")}${esc(it.country||"?")} (perkiraan dari bahasa/isi)</p>
+  <div style="background:#10101a;border-left:3px solid #ff2d95;padding:9px;border-radius:8px;margin:8px 0"><b style="color:#ff8ac4;font-size:11px">Draf komentar Tiara</b><div class="rdd">${esc(it.draft||"(draf belum ada, klik Tulis ulang)")}</div></div>
+  <button class="btn sm" data-a="copy">📋 Salin komentar</button> <a class="btn2 sm" href="${esc(it.url)}" target="_blank" rel="noopener">↗ Buka postingan</a> <button class="btn2 sm" data-a="rw">✍️ Tulis ulang</button> <button class="btn2 sm" data-a="done">Sudah dikomentari ✓</button> <button class="btn2 sm" data-a="skip">Lewati</button></div>`};
+ const bind=box=>box.querySelectorAll("[data-a]").forEach(b=>b.onclick=async()=>{const id=b.closest("[data-id]").dataset.id,it=RD.items.find(x=>x.id==id),a=b.dataset.a;
+  try{if(a=="copy"){await navigator.clipboard.writeText(it.draft);toast("Tersalin ✓ — buka postingan lalu tempel")}
+  else if(a=="rw"){b.disabled=true;b.textContent="Menulis…";const r=await A("radar",{op:"rewrite",id});it.draft=r.item.draft;b.closest("[data-id]").querySelector(".rdd").textContent=it.draft;b.disabled=false;b.textContent="✍️ Tulis ulang"}
+  else{await A("radar",{op:"status",id,status:a});it.status=a;toast(a=="done"?"Mantap ✓":"Dilewati");list()}}catch(e){toast(e.message,1);b.disabled=false}});
+ const pick=it=>{$("#rdc").innerHTML=card(it);bind($("#rdc"))};
+ function list(){const L=RD.items.filter(x=>(RF.pf=="all"||x.pf==RF.pf)&&(RF.cat=="all"||x.cat==RF.cat));$("#rdl").innerHTML=L.length?L.map(card).join(""):'<p class="muted">Belum ada postingan. Klik "Jalankan radar sekarang".</p>';bind($("#rdl"))}
+ list();$$("#rdf .chip").forEach(b=>b.onclick=()=>{if(b.dataset.pf)RF.pf=b.dataset.pf;if(b.dataset.cat)RF.cat=b.dataset.cat;$$("#rdf .chip").forEach(x=>x.classList.toggle("on",x.dataset.pf?x.dataset.pf==RF.pf:x.dataset.cat==RF.cat));list()});
+ $("#rds").onclick=async()=>{try{await A("radar",{op:"settings",enabled:$("#rd1").checked,thSearch:$("#rd2").checked,count:+$("#rdn").value,hashtags:$("#rdh").value,keywords:$("#rdk").value});toast("Tersimpan ✓")}catch(e){toast(e.message,1)}};
+ $("#rdr").onclick=async()=>{const b=$("#rdr");b.disabled=true;b.textContent="Mencari… (±1 menit)";try{let r;for(let i=0;i<4;i++){r=await A("radar",{op:"run"});if(r.job&&r.job.phase=="done")break}toast(r.job.phase=="done"?"Radar selesai: "+(r.job.found||0)+" postingan":"Masih berjalan, klik lagi sebentar");radar()}catch(e){toast(e.message,1);b.disabled=false;b.textContent="🎯 Jalankan radar sekarang"}};
+ try{await RADAR.libs();RADAR.start($("#rdg"),RD.items.filter(x=>x.lat||x.lng),pick);if(window.RADAR_OPEN)pick(RD.items[0]),RADAR_FOCUS(RD.items[0])}catch(e){$("#rdg").replaceWith(Object.assign(document.createElement("p"),{className:"muted",textContent:"Globe gagal dimuat: "+e.message}))}}
 // ===== TIKTOK (di tab Konten) =====
 async function tiktokCard(){const t=await A("tiktok").catch(e=>({err:e.message}));if(t.err)return `<div class="card err">${esc(t.err)}</div>`;const s=t.settings;
  return `<div class="card"><div class="row"><h3>🎵 Repost ke TikTok</h3><span style="text-align:right"><span class="badge">${!t.env?"Belum diatur":t.connected?"Terhubung":"Belum terhubung"}</span></span></div>

@@ -5,6 +5,7 @@ const U = require("./_lib/util");
 const C = require("./_lib/content");
 const T = require("./_lib/tahap2");
 const TH = require("./_lib/threads");
+const RD = require("./_lib/radar");
 const MODELS = { seedance: "Seedance 2.5", grok: "Grok Imagine 1.5", omni: "Gemini Omni 1.1 Flash" };
 const ip = req => String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "local";
 const cookie = (res, v, age) => res.setHeader("Set-Cookie", `tp_adm=${v}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${process.env.VERCEL ? "; Secure" : ""}`);
@@ -150,6 +151,16 @@ Tulis captionnya saja tanpa penjelasan.`);
         if (b.op === "run") return res.json({ run, ...(await commentsData()) });
       }
       return res.json(await commentsData());
+    }
+    // ---------- RADAR TIARA (draf komentar, TIDAK diposting otomatis) ----------
+    if (action === "radar") {
+      if (req.method === "POST") {
+        if (b.op === "settings") await RD.saveSettings(b);
+        if (b.op === "run") { const job = await RD.runNow(); return res.json({ job, ...(await RD.rdData()) }); }
+        if (b.op === "status") await RD.setStatus(U.str(b.id, 80), ["done", "skip", "new"].includes(b.status) ? b.status : "new");
+        if (b.op === "rewrite") return res.json({ item: await RD.rewrite(U.str(b.id, 80)) });
+      }
+      return res.json(await RD.rdData());
     }
     // ---------- TIKTOK ----------
     if (action === "tiktok_callback") {
