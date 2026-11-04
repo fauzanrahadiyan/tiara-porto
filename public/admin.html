@@ -2,11 +2,11 @@
 <title>Admin · Tiara Porto</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="agency.css"><link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta property="og:title" content="Tiara Porto · Jasa Video AI"><meta property="og:description" content="Portofolio &amp; pemesanan video AI @tiara_ai_influencer"><meta property="og:image" content="https://tiara-porto.vercel.app/og-image.jpg"><meta property="og:type" content="website"><meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#1a1220"></head><body>
 <div class="top"><span class="logo">Tiara<b>Porto</b> <span class="badge">Admin</span></span><button class="btn2 sm" id="out" hidden style="margin:0">Keluar</button></div>
 <div class="wrap" id="app"><p class="muted">Memuat…</p></div>
-<nav class="nav" id="nav" hidden><button data-t="orders" class="on">🎬 Jasa AI</button><button data-t="konten">📱 Konten</button><button data-t="komen">💬 Komentar</button><button data-t="atur">⚙️ Atur</button></nav>
+<nav class="nav" id="nav" hidden><button data-t="orders" class="on">🎬 Jasa AI</button><button data-t="konten">📱 Konten</button><button data-t="komen">💬 Komentar</button><button data-t="lapor">💰 Laporan</button><button data-t="atur">⚙️ Atur</button></nav>
 <script src="common.js"></script><script>
 let ME,TAB="orders";const ST={brief:"Brief baru",approved:"Menunggu bayar",proof:"Cek bukti transfer",paid:"Lunas",production:"Produksi",preview:"Preview dikirim",accepted:"Disetujui klien",done:"Selesai",rejected:"Ditolak"};
 const A=(a,d)=>api("/api/admin?action="+a,d);const app=h=>$("#app").innerHTML=h;
-async function boot(){ME=await A("me");if(!ME.who)return login();$("#nav").hidden=false;$("#out").hidden=false;const c=location.hash.slice(1);c&&c.startsWith("TP-")?openOrder(c):go(TAB)}
+async function boot(){ME=await A("me");if(!ME.who)return login();$("#nav").hidden=false;$("#out").hidden=false;const tt=new URLSearchParams(location.search).get("tt");if(tt){history.replaceState(null,"","/admin");toast(tt=="ok"?"TikTok terhubung ✓":"TikTok: "+tt,tt!="ok");TAB="konten"}const c=location.hash.slice(1);c&&c.startsWith("TP-")?openOrder(c):go(TAB)}
 function login(){app(`<div class="card" style="margin-top:30px"><h2>Masuk Admin</h2><p class="muted" style="margin-bottom:12px">Khusus pemilik Tiara Porto.</p>
  ${ME.google?`<div id="gbtn" style="margin-bottom:12px"></div><p class="muted" style="text-align:center;margin-bottom:10px">— atau —</p>`:""}
  <form id="lf"><label>Password admin</label><input class="in" type="password" name="p" autocomplete="current-password"><button class="btn">Masuk</button></form></div>
@@ -15,7 +15,7 @@ function login(){app(`<div class="card" style="margin-top:30px"><h2>Masuk Admin<
  if(ME.google){const s=document.createElement("script");s.src="https://accounts.google.com/gsi/client";s.onload=()=>{google.accounts.id.initialize({client_id:ME.google,callback:async r=>{try{await A("login",{credential:r.credential});boot()}catch(x){toast(x.message,1)}}});google.accounts.id.renderButton($("#gbtn"),{theme:"filled_black",size:"large",width:300})};document.head.appendChild(s)}}
 $("#out").onclick=async()=>{await A("logout",{});location.reload()};
 $$("#nav button").forEach(b=>b.onclick=()=>{location.hash="";go(b.dataset.t)});
-function go(t){TAB=t;$$("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t==t));({orders:orders,konten:konten,komen:komen,atur:atur})[t]().catch(e=>app(`<div class="card err">${esc(e.message)}</div>`));scrollTo(0,0)}
+function go(t){TAB=t;$$("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t==t));({orders:orders,konten:konten,komen:komen,lapor:laporan,atur:atur})[t]().catch(e=>app(`<div class="card err">${esc(e.message)}</div>`));scrollTo(0,0)}
 
 // ===== JASA AI VIDEO =====
 async function orders(){const d=await A("orders"),s=d.stats;
@@ -61,7 +61,7 @@ async function openOrder(c){location.hash=c;const o=await A("order&c="+c);const 
  let fnUrl="";if($("#fn")){dropper($("#fn"),"admin",u=>{fnUrl=u;$("#sendFn").disabled=false});$("#sendFn").onclick=()=>act("final",{url:fnUrl})}}
 
 // ===== KONTEN TIARA =====
-async function konten(){const [g,qd]=await Promise.all([A("golden").catch(e=>({slots:["12:15","19:30"],reason:e.message})),A("queue")]);
+async function konten(){const [g,qd,ttc]=await Promise.all([A("golden").catch(e=>({slots:["12:15","19:30"],reason:e.message})),A("queue"),tiktokCard()]);
  const icon={queued:"⏳",scheduled:"🗓️",processing:"⚙️",posted:"✅",failed:"❌"};
  app(`<h2>Konten Tiara</h2>
  <div class="card"><div class="row"><h3>⭐ Jam Emas Hari Ini</h3><button class="btn2 sm" id="rg" style="flex:0 0 auto;margin:0">↻ Hitung ulang</button></div><div class="chips">${g.slots.map(s=>`<span class="chip on">${s} WIB</span>`).join("")}</div><p class="muted">${esc(g.reason||"")} ${g.source?`(sumber: ${esc(g.source)})`:""}</p></div>
@@ -70,8 +70,10 @@ async function konten(){const [g,qd]=await Promise.all([A("golden").catch(e=>({s
   <button class="btn2" id="gc">✨ Buat Caption AI</button><label style="margin-top:10px">Caption</label><textarea class="in" id="cap" style="min-height:150px"></textarea>
   <label>Jadwal manual (opsional — kosongkan untuk otomatis di Jam Emas)</label><input class="in" type="datetime-local" id="at">
   <button class="btn" id="add" disabled>🗓️ Jadwalkan Otomatis</button></div>
- <div class="card"><h3>Kalender Konten</h3>${qd.queue.length?qd.queue.map(i=>`<div class="li" style="cursor:default"><div style="min-width:0"><b>${icon[i.status]||""} ${i.scheduledAt?tgl(i.scheduledAt):"Menunggu slot"}</b><div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px">${esc((i.caption||"").split("\n")[0])}</div>${i.log?`<div class="muted ${i.status=="failed"?"err":""}">${esc(i.log)}</div>`:""}${i.permalink?`<a href="${esc(i.permalink)}" target="_blank" class="muted">Lihat di IG</a>`:""}</div>
+ ${ttc}
+ <div class="card"><h3>Kalender Konten</h3>${qd.queue.length?qd.queue.map(i=>`<div class="li" style="cursor:default"><div style="min-width:0"><b>${icon[i.status]||""} ${i.scheduledAt?tgl(i.scheduledAt):"Menunggu slot"}</b><div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px">${esc((i.caption||"").split("\n")[0])}</div>${i.log?`<div class="muted ${i.status=="failed"?"err":""}">${esc(i.log)}</div>`:""}${i.permalink?`<a href="${esc(i.permalink)}" target="_blank" class="muted">Lihat di IG</a>`:""}${i.tt?`<div class="muted ${i.tt.status=="failed"?"err":""}">🎵 TikTok: ${esc(i.tt.log||i.tt.status)}</div>`:""}${i.tt&&i.tt.status=="failed"&&!i.videoDeleted?`<button class="btn2 sm" data-ttr="${i.id}">Kirim ulang ke TikTok</button>`:""}</div>
   <div style="flex:0 0 auto">${i.status!="posted"?`<button class="btn sm" data-now="${i.id}">Posting Sekarang</button><br><button class="btn2 sm" data-del="${i.id}">Hapus</button>`:""}</div></div>`).join(""):`<p class="muted">Belum ada antrean.</p>`}</div>`);
+ tiktokBind();
  $("#rg").onclick=async()=>{toast("Menghitung jam emas…");await A("golden&force=1");konten()};
  let vurl="";dropper($("#vu"),"admin",u=>{vurl=u;$("#add").disabled=false});
  $("#gc").onclick=async()=>{const b=$("#gc");b.disabled=true;b.textContent="Menulis caption…";try{$("#cap").value=(await A("caption",{idea:$("#idea").value})).caption}catch(e){toast(e.message,1)}b.disabled=false;b.textContent="✨ Buat Caption AI"};
@@ -107,6 +109,46 @@ async function atur(){const c=await A("config"),D=[10,15,30,60];
  <div class="card" style="margin-top:12px"><h3>Link penting</h3><p class="muted">Pemesanan klien: <b>${location.origin}/pesan.html</b></p></div>`);
  $("#sv").onclick=async()=>{const P=JSON.parse(JSON.stringify(c.prices));$$("td input").forEach(i=>P[i.dataset.k][i.dataset.p][+i.dataset.i]=+i.value);
   try{await A("config",{prices:P,revisiFee:{hemat:$("#rh").value,premium:$("#rpm").value},bank:{nama:$("#bn").value,norek:$("#br").value,atasNama:$("#ba").value,catatan:$("#bc").value}});toast("Tersimpan ✓")}catch(e){toast(e.message,1)}};
- $("#tw").onclick=async()=>{const r=await A("testwa");toast(r.ok?"Terkirim, cek WhatsApp":"Gagal: "+(r.msg||"cek CALLMEBOT_APIKEY"),!r.ok)}}
+ $("#tw").onclick=async()=>{const r=await A("testwa");toast(r.ok?"Terkirim, cek Telegram/WhatsApp":"Gagal: "+(r.msg||"cek TELEGRAM_BOT_TOKEN"),!r.ok)}}
+
+// ===== TIKTOK (di tab Konten) =====
+async function tiktokCard(){const t=await A("tiktok").catch(e=>({err:e.message}));if(t.err)return `<div class="card err">${esc(t.err)}</div>`;const s=t.settings;
+ return `<div class="card"><div class="row"><h3>🎵 Repost ke TikTok</h3><span style="text-align:right"><span class="badge">${!t.env?"Belum diatur":t.connected?"Terhubung":"Belum terhubung"}</span></span></div>
+ ${!t.env?`<p class="muted">Isi <b>TIKTOK_CLIENT_KEY</b> & <b>TIKTOK_CLIENT_SECRET</b> di Vercel dulu (lihat PANDUAN-TAHAP2).</p>`:t.connected?`<p class="ok">✓ Akun TikTok: ${esc(t.user||"terhubung")}</p>`:`<p class="muted">Klik tombol di bawah lalu izinkan akses di TikTok.</p>`}
+ ${t.env?`<button class="btn2 sm" id="ttc">${t.connected?"🔄 Hubungkan ulang":"🔗 Hubungkan TikTok"}</button>${t.connected?`<button class="btn2 sm" id="ttd">Putuskan</button>`:""}`:""}
+ <div class="sw" style="margin-top:10px"><b>Otomatis kirim ke TikTok setelah tayang di IG</b><input type="checkbox" id="tte" ${s.enabled?"checked":""} style="width:22px;height:22px;accent-color:#ff2d95"></div>
+ <label>Privasi video TikTok</label><select class="in" id="ttp">${[["SELF_ONLY","Privat (Hanya saya) — wajib sebelum lolos audit"],["PUBLIC_TO_EVERYONE","Publik (setelah lolos audit)"],["FOLLOWER_OF_CREATOR","Hanya follower"],["MUTUAL_FOLLOW_FRIENDS","Teman"]].map(([v,l])=>`<option value="${v}" ${s.privacy==v?"selected":""}>${l}</option>`).join("")}</select>
+ <button class="btn sm" id="tts">Simpan TikTok</button><p class="muted" style="margin-top:6px">Caption TikTok dibuat Gemini dari caption IG. Selama aplikasi TikTok belum lolos audit, video masuk sebagai privat — buka TikTok lalu ubah ke Publik.</p></div>`}
+function tiktokBind(){if($("#ttc"))$("#ttc").onclick=async()=>{try{location.href=(await A("tiktok",{op:"connect"})).url}catch(e){toast(e.message,1)}};
+ if($("#ttd"))$("#ttd").onclick=async()=>{if(!confirm("Putuskan TikTok?"))return;await A("tiktok",{op:"disconnect"});konten()};
+ if($("#tts"))$("#tts").onclick=async()=>{try{await A("tiktok",{op:"settings",enabled:$("#tte").checked,privacy:$("#ttp").value});toast("Tersimpan ✓")}catch(e){toast(e.message,1)}};
+ $$("[data-ttr]").forEach(b=>b.onclick=async()=>{b.disabled=true;b.textContent="Mengirim…";try{const r=await A("tiktok",{op:"retry",id:b.dataset.ttr});toast(r.result.done?.[0]?.log||"Diproses");konten()}catch(e){toast(e.message,1);b.disabled=false}})}
+
+// ===== LAPORAN: UNTUNG-RUGI, TREN, MINGGUAN =====
+const BLN=["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];const blnLabel=m=>BLN[+m.slice(5)-1]+" "+m.slice(0,4);
+let PM="";
+async function laporan(){const [p,r]=await Promise.all([A("profit"+(PM?"&m="+PM:"")),A("reports")]);PM=p.month;const c=p.settings,w=r.weekly;
+ app(`<h2>Untung-Rugi</h2>
+ <div class="card"><label>Bulan</label><select class="in" id="pm">${p.months.map(m=>`<option value="${m}" ${m==p.month?"selected":""}>${blnLabel(m)}</option>`).join("")}</select>
+ <div class="row"><div><div class="muted">Pemasukan</div><div class="stat" style="font-size:17px">${rp(p.income)}</div></div><div><div class="muted">Modal</div><div class="stat" style="font-size:17px">${rp(p.modal)}</div></div><div><div class="muted">Untung bersih</div><div class="stat ${p.net>=0?"pink":"err"}" style="font-size:17px">${rp(p.net)}</div></div></div>
+ <p class="muted" style="margin-top:8px">Modal = biaya produksi order ${rp(p.modalOrder)} + ${esc(c.fixedLabel)} ${rp(p.fixed)} + pengeluaran lain ${rp(p.modalManual)}</p></div>
+ <div class="card"><h3>Order lunas (${p.rows.length})</h3>${p.rows.map(o=>`<div class="li" style="cursor:default"><div><b>${esc(o.name)}</b> <span class="muted">${o.code}</span><div class="muted">${o.pkg=="premium"?"Premium (Seedance)":"Hemat (Omni)"} · ${o.dur} dtk · ${tgl(o.t)}</div></div><div style="text-align:right"><b>${rp(o.income)}</b><div class="muted">modal ${rp(o.cost)}</div></div></div>`).join("")||`<p class="muted">Belum ada order lunas bulan ini.</p>`}</div>
+ <div class="card"><h3>Pengeluaran lain</h3>${p.manual.map(e=>`<div class="li" style="cursor:default"><div>${esc(e.desc)}<div class="muted">${tgl(e.t)}</div></div><div style="text-align:right"><b>${rp(e.amount)}</b><br><button class="btn2 sm" data-dx="${e.id}">Hapus</button></div></div>`).join("")||`<p class="muted">Belum ada.</p>`}
+ <div class="row"><input class="in" id="ed" placeholder="Contoh: Beli kredit ElevenLabs"><input class="in" id="ea" type="number" placeholder="Jumlah (Rp)"></div><button class="btn sm" id="ead">+ Tambah pengeluaran</button></div>
+ <div class="card"><h3>Biaya modal otomatis</h3><label>Premium Seedance per 30 detik (720p)</label><input class="in" id="c1" type="number" value="${c.premiumPer30}"><label>Hemat Omni per 10 detik</label><input class="in" id="c2" type="number" value="${c.hematPer10}">
+ <label>Biaya tetap bulanan</label><div class="row"><input class="in" id="c4" value="${esc(c.fixedLabel)}"><input class="in" id="c3" type="number" value="${c.fixedMonthly}"></div><button class="btn2 sm" id="csv">Simpan biaya</button><p class="muted">Modal order dihitung otomatis saat klik "Konfirmasi Lunas", sebanding durasi.</p></div>
+ <h2 style="margin-top:18px">Tren & Laporan</h2>
+ <div class="card"><div class="row"><h3>📈 Tren Harian</h3><button class="btn2 sm" id="tr" style="flex:0 0 auto;margin:0">↻ Buat sekarang</button></div>${r.trend?`<p class="muted">${esc(r.trend.date)}</p><p style="white-space:pre-wrap">${esc(r.trend.text)}</p>`:`<p class="muted">Belum ada. Otomatis dikirim ke Telegram tiap pagi setelah 06.00 WIB.</p>`}
+ ${(r.trendHist||[]).length?`<details style="margin-top:8px"><summary class="muted">Tren hari sebelumnya</summary>${r.trendHist.map(t=>`<p class="muted" style="margin-top:8px"><b>${esc(t.date)}</b></p><p style="white-space:pre-wrap;font-size:13px">${esc(t.text)}</p>`).join("")}</details>`:""}</div>
+ <div class="card"><div class="row"><h3>📊 Laporan Senin</h3><button class="btn2 sm" id="wk" style="flex:0 0 auto;margin:0">↻ Buat sekarang</button></div>${w?`<p class="muted">7 hari s/d ${esc(w.date)}</p>
+ <div class="row"><div><div class="muted">Reels tayang</div><div class="stat" style="font-size:17px">${w.reels}</div></div><div><div class="muted">Ke TikTok</div><div class="stat" style="font-size:17px">${w.tiktok||0}</div></div><div><div class="muted">Komentar dibalas</div><div class="stat" style="font-size:17px">${w.replied}</div></div></div>
+ <div class="row"><div><div class="muted">Pesanan masuk</div><div class="stat" style="font-size:17px">${w.ordersIn}</div></div><div><div class="muted">Pemasukan</div><div class="stat" style="font-size:17px">${rp(w.revenue)}</div></div><div><div class="muted">Untung</div><div class="stat pink" style="font-size:17px">${rp(w.profit)}</div></div></div>`:`<p class="muted">Belum ada. Otomatis dikirim ke Telegram tiap Senin setelah 07.00 WIB.</p>`}</div>`);
+ $("#pm").onchange=e=>{PM=e.target.value;laporan()};
+ $("#ead").onclick=async()=>{try{await A("profit",{op:"addExp",month:PM,desc:$("#ed").value,amount:$("#ea").value});toast("Tersimpan ✓");laporan()}catch(e){toast(e.message,1)}};
+ $$("[data-dx]").forEach(b=>b.onclick=async()=>{if(!confirm("Hapus pengeluaran ini?"))return;await A("profit",{op:"delExp",id:b.dataset.dx,month:PM});laporan()});
+ $("#csv").onclick=async()=>{await A("profit",{op:"costs",month:PM,premiumPer30:$("#c1").value,hematPer10:$("#c2").value,fixedMonthly:$("#c3").value,fixedLabel:$("#c4").value});toast("Tersimpan ✓");laporan()};
+ const gen=(id,op,msg)=>$(id).onclick=async()=>{const b=$(id);b.disabled=true;b.textContent=msg;try{await A("reports",{op});toast("Terkirim ke Telegram ✓");laporan()}catch(e){toast(e.message,1);b.disabled=false;b.textContent="↻ Buat sekarang"}};
+ gen("#tr","trend","Gemini mencari tren…");gen("#wk","weekly","Menghitung…")}
+
 boot().catch(e=>app(`<div class="card err">${esc(e.message)}</div>`));
 </script></body></html>

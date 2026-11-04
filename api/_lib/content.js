@@ -1,6 +1,7 @@
 // Konten Tiara: jam emas, antrean posting Reels, balas komentar otomatis.
 const db = require("./db");
 const U = require("./util");
+const T = require("./tahap2");
 const DEFAULT_SLOTS = ["12:15", "19:30"]; // 11.30-13.00 & 19.00-21.00 WIB
 const DAY = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const ymd = d => U.wib(d).toISOString().slice(0, 10);
@@ -74,7 +75,8 @@ async function stepItem(it) {
       const p = await U.ig(`${uid}/media_publish`, { creation_id: it.containerId }, "POST");
       it.mediaId = p.id; it.status = "posted"; it.postedAt = Date.now(); it.log = "Sudah tayang ✅";
       try { const m = await U.ig(p.id, { fields: "permalink" }); it.permalink = m.permalink; } catch (e) {}
-      await U.delBlob(it.videoUrl); it.videoDeleted = true;
+      let keep = false; try { keep = await T.ttMark(it); } catch (e) { it.tt = { status: "failed", log: e.message }; }
+      if (!keep) { await U.delBlob(it.videoUrl); it.videoDeleted = true; } // kalau TikTok ON, video dihapus setelah terkirim ke TikTok
       await U.notifyWA(`✅ Reels sudah tayang di @tiara_ai_influencer\n${it.permalink || ""}`);
       return it;
     }
@@ -108,6 +110,7 @@ Komentar dari @${c.username}: "${(c.text || "").slice(0, 500)}"
 1) Nilai keamanan: "aman" atau "cek" (cek = kasar/hinaan, SARA, spam/promosi/link, seksual/jorok, politik, penipuan, atau butuh jawaban manusia).
 2) Deteksi apakah komentar menanyakan harga/jasa bikin video (calon_klien true/false).
 3) Jika aman, tulis balasan singkat (maks 25 kata) sebagai Tiara: WAJIB sebut @${c.username}, logat Suroboyo campur bahasa Indonesia (contoh kata: rek, cak, arek, isok, ae, gak popo, suwun, yo), variasikan gaya, boleh 1 emoji. Jika komentar berbahasa Inggris balas campuran Inggris + sedikit Suroboyo. Jika calon_klien, ajak cek link order di bio. Jangan mengulang kalimat template.
+PENTING: JANGAN menyebut nomor episode, judul, tanggal, harga, nama, atau fakta apa pun yang TIDAK tertulis di caption Reels di atas. Jangan menjanjikan episode/konten berikutnya dengan nomor. Kalau perlu, pakai kata umum seperti "konten selanjutnya" atau "video berikutnya".
 Jawab JSON: {"aman":"aman|cek","alasan":"singkat","calon_klien":false,"balasan":"..."}`, { json: true });
 }
 async function processComments(maxReplies = 6) {

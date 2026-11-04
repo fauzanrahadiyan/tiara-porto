@@ -26,7 +26,7 @@ async function getConfig() {
 
 // ===== Gemini =====
 const MODELS = () => [...new Set([clean(process.env.GEMINI_MODEL), "gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash"].filter(Boolean))];
-async function gemini(parts, { json = false, timeout = 40000 } = {}) {
+async function gemini(parts, { json = false, timeout = 40000, search = false } = {}) {
   const key = clean(process.env.GEMINI_API_KEY);
   if (!key) throw new Error("GEMINI_API_KEY belum diisi");
   if (typeof parts === "string") parts = [{ text: parts }];
@@ -36,7 +36,7 @@ async function gemini(parts, { json = false, timeout = 40000 } = {}) {
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: "POST", signal: ac.signal, headers: { "content-type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({ contents: [{ parts }], generationConfig: json ? { responseMimeType: "application/json" } : {} }),
+        body: JSON.stringify({ contents: [{ parts }], generationConfig: json ? { responseMimeType: "application/json" } : {}, ...(search && !json ? { tools: [{ google_search: {} }] } : {}) }),
       });
       const j = await r.json();
       if (j.error) throw new Error(j.error.message);

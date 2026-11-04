@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const db = require("./_lib/db");
 const U = require("./_lib/util");
 const C = require("./_lib/content");
+const T = require("./_lib/tahap2");
 const MODELS = { seedance: "Seedance 2.5", grok: "Grok Imagine 1.5", omni: "Gemini Omni 1.1 Flash" };
 const ip = req => String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "local";
 const cookie = (res, v, age) => res.setHeader("Set-Cookie", `tp_adm=${v}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${process.env.VERCEL ? "; Secure" : ""}`);
@@ -53,7 +54,7 @@ module.exports = async (req, res) => {
         if (a === "accept") { o.status = "approved"; o.question = ""; log("Disetujui, menunggu pembayaran"); }
         else if (a === "reject") { o.status = "rejected"; o.rejectReason = U.str(b.text, 500); log("Ditolak"); }
         else if (a === "ask") { o.question = U.str(b.text, 1000); log("Admin bertanya"); }
-        else if (a === "paid") { o.status = "paid"; o.paidAt = Date.now(); log("Pembayaran lunas"); }
+        else if (a === "paid") { o.status = "paid"; o.paidAt = Date.now(); o.cost = T.orderCost(o, await T.costSettings()); log("Pembayaran lunas (modal " + U.rp(o.cost) + ")"); }
         else if (a === "production") { o.status = "production"; log("Masuk produksi"); }
         else if (a === "preview") { if (!b.url) return res.status(400).json({ error: "Upload video preview dulu" }); o.previewUrl = b.url; o.status = "preview"; log("Preview dikirim ke klien"); }
         else if (a === "final") { if (!b.url) return res.status(400).json({ error: "Upload file final dulu" }); o.finalUrl = b.url; if (o.status === "accepted") o.status = "done"; log("File final diunggah"); }
@@ -148,6 +149,35 @@ Tulis captionnya saja tanpa penjelasan.`);
         if (b.op === "run") return res.json({ run, ...(await commentsData()) });
       }
       return res.json(await commentsData());
+    }
+    // ---------- TIKTOK ----------
+    if (action === "tiktok_callback") {
+      try { await T.ttCallback(q); res.statusCode = 302; res.setHeader("Location", "/admin?tt=ok"); }
+      catch (e) { res.statusCode = 302; res.setHeader("Location", "/admin?tt=" + encodeURIComponent(e.message.slice(0, 150))); }
+      return res.end();
+    }
+    if (action === "tiktok") {
+      if (req.method === "POST") {
+        if (b.op === "connect") return res.json({ url: await T.ttAuthUrl() });
+        if (b.op === "settings") { const s = await T.ttSettings(); s.enabled = !!b.enabled; s.privacy = ["SELF_ONLY", "PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR"].includes(b.privacy) ? b.privacy : "SELF_ONLY"; await db.set("tt_settings", s); }
+        if (b.op === "disconnect") await db.del("tt_token");
+        if (b.op === "retry") { const qq = (await db.get("queue")) || []; const it = qq.find(x => x.id === b.id); if (!it || it.videoDeleted) return res.status(400).json({ error: "Video sudah tidak tersimpan" }); it.tt = { status: "pending", log: "Dikirim ulang" }; await db.set("queue", qq); return res.json({ result: await T.tiktokDue(b.id) }); }
+      }
+      return res.json(await T.ttStatus());
+    }
+    // ---------- UNTUNG-RUGI, TREN, LAPORAN ----------
+    if (action === "profit") {
+      if (req.method === "POST") {
+        if (b.op === "addExp") await T.addExpense(b);
+        if (b.op === "delExp") await T.delExpense(b.id);
+        if (b.op === "costs") { const c = await T.costSettings(); for (const k of ["premiumPer30", "hematPer10", "fixedMonthly"]) if (b[k] != null) c[k] = Math.max(0, Math.round(+b[k] || 0)); if (b.fixedLabel != null) c.fixedLabel = U.str(b.fixedLabel, 60); await db.set("cost_settings", c); }
+      }
+      return res.json(await T.profit(q.m || b.month));
+    }
+    if (action === "reports") {
+      if (req.method === "POST" && b.op === "trend") await T.trendNow();
+      if (req.method === "POST" && b.op === "weekly") await T.weeklyNow();
+      return res.json({ trend: await db.get("trend_latest"), trendHist: ((await db.get("trend_hist")) || []).slice(1, 7), weekly: await db.get("weekly_latest") });
     }
     if (action === "testwa") return res.json(await U.notifyWA("Tes notifikasi dari Tiara Porto ✅"));
     res.status(400).json({ error: "Aksi tidak dikenal" });
