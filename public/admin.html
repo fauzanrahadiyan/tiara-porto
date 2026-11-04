@@ -1,0 +1,112 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin · Tiara Porto</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="agency.css"></head><body>
+<div class="top"><span class="logo">Tiara<b>Porto</b> <span class="badge">Admin</span></span><button class="btn2 sm" id="out" hidden style="margin:0">Keluar</button></div>
+<div class="wrap" id="app"><p class="muted">Memuat…</p></div>
+<nav class="nav" id="nav" hidden><button data-t="orders" class="on">🎬 Jasa AI</button><button data-t="konten">📱 Konten</button><button data-t="komen">💬 Komentar</button><button data-t="atur">⚙️ Atur</button></nav>
+<script src="common.js"></script><script>
+let ME,TAB="orders";const ST={brief:"Brief baru",approved:"Menunggu bayar",proof:"Cek bukti transfer",paid:"Lunas",production:"Produksi",preview:"Preview dikirim",accepted:"Disetujui klien",done:"Selesai",rejected:"Ditolak"};
+const A=(a,d)=>api("/api/admin?action="+a,d);const app=h=>$("#app").innerHTML=h;
+async function boot(){ME=await A("me");if(!ME.who)return login();$("#nav").hidden=false;$("#out").hidden=false;const c=location.hash.slice(1);c&&c.startsWith("TP-")?openOrder(c):go(TAB)}
+function login(){app(`<div class="card" style="margin-top:30px"><h2>Masuk Admin</h2><p class="muted" style="margin-bottom:12px">Khusus pemilik Tiara Porto.</p>
+ ${ME.google?`<div id="gbtn" style="margin-bottom:12px"></div><p class="muted" style="text-align:center;margin-bottom:10px">— atau —</p>`:""}
+ <form id="lf"><label>Password admin</label><input class="in" type="password" name="p" autocomplete="current-password"><button class="btn">Masuk</button></form></div>
+ ${!ME.storage?`<div class="warn">Database belum terhubung (Upstash Redis). Lihat panduan langkah 3.</div>`:""}`);
+ $("#lf").onsubmit=async e=>{e.preventDefault();try{await A("login",{password:e.target.p.value});boot()}catch(x){toast(x.message,1)}};
+ if(ME.google){const s=document.createElement("script");s.src="https://accounts.google.com/gsi/client";s.onload=()=>{google.accounts.id.initialize({client_id:ME.google,callback:async r=>{try{await A("login",{credential:r.credential});boot()}catch(x){toast(x.message,1)}}});google.accounts.id.renderButton($("#gbtn"),{theme:"filled_black",size:"large",width:300})};document.head.appendChild(s)}}
+$("#out").onclick=async()=>{await A("logout",{});location.reload()};
+$$("#nav button").forEach(b=>b.onclick=()=>{location.hash="";go(b.dataset.t)});
+function go(t){TAB=t;$$("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t==t));({orders:orders,konten:konten,komen:komen,atur:atur})[t]().catch(e=>app(`<div class="card err">${esc(e.message)}</div>`));scrollTo(0,0)}
+
+// ===== JASA AI VIDEO =====
+async function orders(){const d=await A("orders"),s=d.stats;
+ app(`<h2>Dashboard</h2>${!ME.storage?`<div class="warn">⚠️ Database belum terhubung — data belum tersimpan permanen.</div>`:""}
+ <div class="row"><div class="card"><div class="muted">Pemasukan bulan ini</div><div class="stat pink">${rp(s.incomeMonth)}</div></div><div class="card"><div class="muted">Total pemasukan</div><div class="stat">${rp(s.income)}</div></div></div>
+ <div class="row"><div class="card"><div class="muted">Brief baru</div><div class="stat">${s.baru}</div></div><div class="card"><div class="muted">Cek transfer</div><div class="stat">${s.proof}</div></div><div class="card"><div class="muted">Dikerjakan</div><div class="stat">${s.jalan}</div></div></div>
+ <div class="card"><h3>Order</h3>${d.orders.length?d.orders.map(o=>`<div class="li" data-c="${o.code}"><div><b>${esc(o.name)}</b> <span class="muted">${o.code}</span><div class="muted">${esc(o.category)} · ${o.pkg} · ${o.dur} dtk · ${tgl(o.createdAt)}</div></div><div style="text-align:right"><span class="badge">${ST[o.status]}</span><div style="font-weight:700;margin-top:4px">${rpk(o.price)}</div></div></div>`).join(""):`<p class="muted">Belum ada order. Link pemesanan untuk klien: <b>${location.origin}/pesan.html</b></p>`}</div>`);
+ $$(".li[data-c]").forEach(l=>l.onclick=()=>openOrder(l.dataset.c))}
+async function openOrder(c){location.hash=c;const o=await A("order&c="+c);const S=o.status;
+ const waC="https://wa.me/"+o.wa.replace(/\D/g,"").replace(/^0/,"62")+"?text="+encodeURIComponent(`Halo ${o.name}, dari Tiara Porto 👋 Status order ${o.code}: ${location.origin}/order.html?c=${o.code}`);
+ const qc=o.qc;app(`<button class="btn2 sm" onclick="go('orders')">← Kembali</button>
+ <div class="card" style="margin-top:10px"><div class="row"><h2>${o.code}</h2><span style="text-align:right"><span class="badge">${ST[S]}</span></span></div>
+ <p><b>${esc(o.name)}</b> · <a href="${waC}" target="_blank">WA ${esc(o.wa)}</a></p><p class="muted">${esc(o.category)} · ${o.pkg} · ${o.dur} dtk · ${o.ratio} · ${esc(o.res)}</p><div class="price">${rp(o.price)}</div>
+ <h3 style="margin-top:10px">Brief</h3><p style="white-space:pre-wrap">${esc(o.desc)}</p>
+ ${o.refLink?`<p>Ref: <a href="${esc(o.refLink)}" target="_blank">${esc(o.refLink)}</a></p>`:""}${(o.refFiles||[]).map(u=>`<p><a href="${esc(u)}" target="_blank">📎 File referensi</a></p>`).join("")}
+ ${o.logoUrl?`<p>Logo: <a href="${esc(o.logoUrl)}" target="_blank"><img src="${esc(o.logoUrl)}" style="max-height:48px;vertical-align:middle;background:#fff;border-radius:6px;padding:3px"></a></p>`:""}
+ ${o.notes?`<p class="muted" style="margin-top:6px">Catatan: ${esc(o.notes)}</p>`:""}
+ ${(o.revisions||[]).map((r,i)=>`<div class="warn" style="margin-top:8px">Revisi #${i+1}${r.paid?" (berbayar)":""}: ${esc(r.note)}</div>`).join("")}
+ <a class="btn2 sm" href="/order.html?c=${o.code}" target="_blank">Lihat halaman klien</a><a class="btn2 sm" href="${waC}" target="_blank">Chat klien</a></div>
+ ${S=="brief"?`<div class="card"><h3>Tindakan</h3><button class="btn" data-a="accept">✓ Terima (minta pembayaran)</button><textarea class="in" id="txt" style="margin-top:10px" placeholder="Pertanyaan untuk klien / alasan tolak…"></textarea><div class="row"><button class="btn2" data-a="ask">💬 Tanya</button><button class="btn2" data-a="reject">✕ Tolak</button></div></div>`:""}
+ ${S=="approved"||S=="proof"?`<div class="card"><h3>Pembayaran</h3>${o.proofUrl?`<a href="${esc(o.proofUrl)}" target="_blank"><img src="${esc(o.proofUrl)}" style="width:100%;border-radius:10px;max-height:380px;object-fit:contain;background:#000" onerror="this.outerHTML='📄 Buka bukti transfer'"></a>`:`<p class="muted">Klien belum upload bukti transfer.</p>`}<button class="btn" data-a="paid">✓ Konfirmasi Lunas</button></div>`:""}
+ ${["paid","production","preview","accepted","done"].includes(S)?`
+ <div class="card"><h3>1. Bot Prompt</h3><label>Model</label><div class="chips" id="mdl"><button class="chip ${o.pkg=="premium"?"on":""}" data-m="seedance">Seedance 2.5</button><button class="chip" data-m="grok">Grok Imagine 1.5</button><button class="chip ${o.pkg!="premium"?"on":""}" data-m="omni">Gemini Omni 1.1 Flash</button></div>
+  <button class="btn" id="gp">✨ Buat Prompt dari Brief</button>${o.prompt?`<pre id="pr" style="margin-top:10px">${esc(o.prompt)}</pre><button class="btn2 sm" id="cp">📋 Copy</button>`:""}</div>
+ <div class="card"><h3>2. QC Hasil Video</h3><p class="muted">Upload hasil generate, Gemini akan menilai sesuai brief.</p><label class="drop" id="res"><input type="file" hidden accept="video/*"><span>⬆ Upload video hasil</span></label><button class="btn" id="qcb" ${o.resultUrl?"":"disabled"}>🔍 Cek Kualitas (QC)</button>
+  ${qc?`<div style="margin-top:12px"><div class="row"><b>Skor QC</b><span class="price" style="text-align:right">${qc.skor}/100</span></div><p>${esc(qc.ringkasan)}</p>${(qc.checklist||[]).map(c=>`<p style="font-size:13px;margin-top:4px">${c.ok?"✅":"❌"} ${esc(c.item)} <span class="muted">${esc(c.catatan||"")}</span></p>`).join("")}<h3 style="margin-top:8px">Saran</h3><ul class="terms">${(qc.saran||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul><button class="btn2" id="fix">🔧 Buat prompt perbaikan</button></div>`:""}</div>
+ <div class="card"><h3>3. Kirim Preview ke Klien</h3><p class="muted">Sebaiknya export versi preview (resolusi kecil/ber-watermark). Halaman klien juga menampilkan watermark & menyembunyikan tombol download.</p>
+  <label class="drop" id="pv"><input type="file" hidden accept="video/*"><span>⬆ Upload video preview</span></label>${o.resultUrl?`<button class="btn2 sm" id="useRes">Pakai video hasil QC</button>`:""}<button class="btn" id="sendPv" disabled>📤 Kirim preview ke klien</button>${o.previewUrl?`<p class="muted" style="margin-top:6px">Preview terkirim: <a href="${esc(o.previewUrl)}" target="_blank">lihat</a></p>`:""}</div>
+ <div class="card"><h3>4. File Final</h3><p class="muted">Bisa diunduh klien setelah klien menyetujui preview.</p><label class="drop" id="fn"><input type="file" hidden><span>⬆ Upload file final (tanpa watermark)</span></label><button class="btn" id="sendFn" disabled>Simpan file final</button>${o.finalUrl?`<p class="ok" style="margin-top:6px">✓ File final tersimpan</p>`:""}
+  ${S!="done"?`<button class="btn2" data-a="done">Tandai Selesai</button>`:""}</div>`:""}
+ <div class="card"><h3>Riwayat</h3>${o.history.map(h=>`<p class="muted">${tgl(h.t)} — ${esc(h.s)}</p>`).join("")}<button class="btn2 sm" data-a="delete" style="margin-top:10px">Hapus order</button></div>`);
+ const act=async(a,extra={})=>{if(a=="delete"&&!confirm("Hapus order ini?"))return;try{await A("orderAct",{c:o.code,act:a,text:$("#txt")?$("#txt").value:"",...extra});toast("Tersimpan ✓");a=="delete"?go("orders"):openOrder(o.code)}catch(e){toast(e.message,1)}};
+ $$("[data-a]").forEach(b=>b.onclick=()=>act(b.dataset.a));
+ let model=o.pkg=="premium"?"seedance":"omni";$$("#mdl .chip").forEach(b=>b.onclick=()=>{model=b.dataset.m;$$("#mdl .chip").forEach(x=>x.classList.toggle("on",x==b))});
+ const busy=async(btn,label,fn)=>{const t=btn.textContent;btn.disabled=true;btn.textContent=label;try{await fn()}catch(e){toast(e.message,1)}btn.disabled=false;btn.textContent=t};
+ if($("#gp"))$("#gp").onclick=()=>busy($("#gp"),"Gemini sedang menulis…",async()=>{await A("prompt",{c:o.code,model});openOrder(o.code)});
+ if($("#cp"))$("#cp").onclick=()=>{navigator.clipboard.writeText(o.prompt);toast("Prompt disalin")};
+ let resUrl=o.resultUrl,resMime="video/mp4";if($("#res"))dropper($("#res"),"admin",(u,f)=>{resUrl=u;resMime=f.type||"video/mp4";$("#qcb").disabled=false});
+ if($("#qcb"))$("#qcb").onclick=()=>busy($("#qcb"),"Gemini menonton video… (±30-60 dtk)",async()=>{await A("qc",{c:o.code,url:resUrl,mime:resMime});openOrder(o.code)});
+ if($("#fix"))$("#fix").onclick=()=>busy($("#fix"),"Membuat prompt perbaikan…",async()=>{await A("fixPrompt",{c:o.code});openOrder(o.code)});
+ let pvUrl="";if($("#pv")){dropper($("#pv"),"admin",u=>{pvUrl=u;$("#sendPv").disabled=false});if($("#useRes"))$("#useRes").onclick=()=>{pvUrl=o.resultUrl;$("#sendPv").disabled=false;toast("Video hasil dipilih")};
+  $("#sendPv").onclick=()=>act("preview",{url:pvUrl})}
+ let fnUrl="";if($("#fn")){dropper($("#fn"),"admin",u=>{fnUrl=u;$("#sendFn").disabled=false});$("#sendFn").onclick=()=>act("final",{url:fnUrl})}}
+
+// ===== KONTEN TIARA =====
+async function konten(){const [g,qd]=await Promise.all([A("golden").catch(e=>({slots:["12:15","19:30"],reason:e.message})),A("queue")]);
+ const icon={queued:"⏳",scheduled:"🗓️",processing:"⚙️",posted:"✅",failed:"❌"};
+ app(`<h2>Konten Tiara</h2>
+ <div class="card"><div class="row"><h3>⭐ Jam Emas Hari Ini</h3><button class="btn2 sm" id="rg" style="flex:0 0 auto;margin:0">↻ Hitung ulang</button></div><div class="chips">${g.slots.map(s=>`<span class="chip on">${s} WIB</span>`).join("")}</div><p class="muted">${esc(g.reason||"")} ${g.source?`(sumber: ${esc(g.source)})`:""}</p></div>
+ <div class="card"><h3>Upload Reels Baru</h3><label class="drop" id="vu"><input type="file" hidden accept="video/mp4,video/quicktime"><span>⬆ Upload video Reels (MP4, 9:16, maks 15 menit)</span></label>
+  <label>Ide / isi video (untuk caption AI)</label><input class="in" id="idea" placeholder="Contoh: Tiara jadi dokter, ngecek pasien lucu">
+  <button class="btn2" id="gc">✨ Buat Caption AI</button><label style="margin-top:10px">Caption</label><textarea class="in" id="cap" style="min-height:150px"></textarea>
+  <label>Jadwal manual (opsional — kosongkan untuk otomatis di Jam Emas)</label><input class="in" type="datetime-local" id="at">
+  <button class="btn" id="add" disabled>🗓️ Jadwalkan Otomatis</button></div>
+ <div class="card"><h3>Kalender Konten</h3>${qd.queue.length?qd.queue.map(i=>`<div class="li" style="cursor:default"><div style="min-width:0"><b>${icon[i.status]||""} ${i.scheduledAt?tgl(i.scheduledAt):"Menunggu slot"}</b><div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px">${esc((i.caption||"").split("\n")[0])}</div>${i.log?`<div class="muted ${i.status=="failed"?"err":""}">${esc(i.log)}</div>`:""}${i.permalink?`<a href="${esc(i.permalink)}" target="_blank" class="muted">Lihat di IG</a>`:""}</div>
+  <div style="flex:0 0 auto">${i.status!="posted"?`<button class="btn sm" data-now="${i.id}">Posting Sekarang</button><br><button class="btn2 sm" data-del="${i.id}">Hapus</button>`:""}</div></div>`).join(""):`<p class="muted">Belum ada antrean.</p>`}</div>`);
+ $("#rg").onclick=async()=>{toast("Menghitung jam emas…");await A("golden&force=1");konten()};
+ let vurl="";dropper($("#vu"),"admin",u=>{vurl=u;$("#add").disabled=false});
+ $("#gc").onclick=async()=>{const b=$("#gc");b.disabled=true;b.textContent="Menulis caption…";try{$("#cap").value=(await A("caption",{idea:$("#idea").value})).caption}catch(e){toast(e.message,1)}b.disabled=false;b.textContent="✨ Buat Caption AI"};
+ $("#add").onclick=async()=>{try{await A("queue",{op:"add",videoUrl:vurl,caption:$("#cap").value,at:$("#at").value});toast("Masuk antrean ✓");konten()}catch(e){toast(e.message,1)}};
+ $$("[data-now]").forEach(b=>b.onclick=async()=>{if(!confirm("Posting ke Instagram sekarang?"))return;b.disabled=true;b.textContent="Memposting… (±1 menit)";try{const r=await A("queue",{op:"now",id:b.dataset.now});toast(r.result.done?.[0]?.log||"Diproses");konten()}catch(e){toast(e.message,1);b.disabled=false}});
+ $$("[data-del]").forEach(b=>b.onclick=async()=>{if(!confirm("Hapus dari antrean?"))return;await A("queue",{op:"del",id:b.dataset.del});konten()})}
+
+// ===== KOMENTAR =====
+async function komen(){const d=await A("comments"),s=d.settings;
+ const item=(c,kind)=>`<div class="card" style="background:#10101a"><b>@${esc(c.user)}</b> <span class="muted">${tgl(c.t)}</span>${c.lead?` <span class="badge">Calon klien</span>`:""}<p>${esc(c.text)}</p>${kind!="h"?`<p class="muted">${esc(c.reason||"")}</p><textarea class="in" data-tx="${c.id}" style="min-height:60px">${esc(c.reply||"")}</textarea><button class="btn sm" data-send="${c.id}">Kirim balasan</button><button class="btn2 sm" data-dis="${c.id}">Abaikan</button>`:`<p class="pink" style="margin-top:4px">↳ ${esc(c.reply)}</p>`}</div>`;
+ app(`<h2>Balas Komentar Otomatis</h2><div class="card">
+ <div class="sw"><b>Aktif</b><input type="checkbox" id="en" ${s.enabled?"checked":""} style="width:22px;height:22px;accent-color:#ff2d95"></div>
+ <label>Mode</label><div class="chips" id="md"><button class="chip ${s.mode!="auto"?"on":""}" data-m="review">Tinjau dulu</button><button class="chip ${s.mode=="auto"?"on":""}" data-m="auto">Full otomatis</button></div>
+ <label>Kata kunci ManyChat (tidak dibalas bot, pisahkan koma)</label><input class="in" id="kw" value="${esc(s.keywords)}">
+ <label>Maks balasan per jam</label><input class="in" id="mx" type="number" value="${s.maxPerHour}">
+ <button class="btn" id="sv">Simpan</button><button class="btn2" id="run">▶ Cek komentar sekarang</button>
+ <p class="muted" style="margin-top:8px">Bot memeriksa komentar 3 hari terakhir di 8 Reels terbaru tiap 10-15 menit. Komentar kasar/SARA/spam/jorok masuk "Perlu dicek" & tidak dibalas.</p></div>
+ <h3>📝 Menunggu persetujuan (${d.pending.length})</h3>${d.pending.map(c=>item(c,"p")).join("")||`<p class="muted" style="margin-bottom:12px">Kosong</p>`}
+ <h3>⚠️ Perlu dicek (${d.flagged.length})</h3>${d.flagged.map(c=>item(c,"f")).join("")||`<p class="muted" style="margin-bottom:12px">Kosong</p>`}
+ <h3>✅ Riwayat balasan</h3>${d.history.map(c=>item(c,"h")).join("")||`<p class="muted">Belum ada</p>`}`);
+ let mode=s.mode;$$("#md .chip").forEach(b=>b.onclick=()=>{mode=b.dataset.m;$$("#md .chip").forEach(x=>x.classList.toggle("on",x==b))});
+ $("#sv").onclick=async()=>{await A("comments",{op:"settings",enabled:$("#en").checked,mode,keywords:$("#kw").value,maxPerHour:$("#mx").value});toast("Tersimpan ✓")};
+ $("#run").onclick=async()=>{const b=$("#run");b.disabled=true;b.textContent="Memeriksa…";try{const r=await A("comments",{op:"run"});toast(`Dicek ${r.run.checked||0}, dibalas ${r.run.replied||0}`);komen()}catch(e){toast(e.message,1);b.disabled=false;b.textContent="▶ Cek komentar sekarang"}};
+ $$("[data-send]").forEach(b=>b.onclick=async()=>{try{await A("comments",{op:"send",id:b.dataset.send,text:$(`[data-tx="${b.dataset.send}"]`).value});toast("Terkirim ✓");komen()}catch(e){toast(e.message,1)}});
+ $$("[data-dis]").forEach(b=>b.onclick=async()=>{await A("comments",{op:"dismiss",id:b.dataset.dis});komen()})}
+
+// ===== PENGATURAN =====
+async function atur(){const c=await A("config"),D=[10,15,30,60];
+ app(`<h2>Pengaturan</h2><div class="card"><h3>Harga (Rupiah, 0 = tidak tersedia)</h3>${Object.keys(c.prices).map(k=>`<p style="margin:10px 0 4px"><b>${esc(k)}</b></p><table><tr><th></th>${D.map(d=>`<th>${d}dtk</th>`).join("")}</tr>${["hemat","premium"].map(p=>`<tr><td>${p=="hemat"?"Hemat":"Premium"}</td>${c.prices[k][p].map((v,i)=>`<td><input type="number" step="5000" data-k="${esc(k)}" data-p="${p}" data-i="${i}" value="${v}"></td>`).join("")}</tr>`).join("")}</table>`).join("")}
+ <label style="margin-top:12px">Biaya revisi ke-3 dst — Hemat / Premium</label><div class="row"><input class="in" id="rh" type="number" value="${c.revisiFee.hemat}"><input class="in" id="rpm" type="number" value="${c.revisiFee.premium}"></div></div>
+ <div class="card"><h3>Rekening Pembayaran</h3><label>Nama bank / e-wallet</label><input class="in" id="bn" value="${esc(c.bank.nama)}"><label>No. rekening</label><input class="in" id="br" value="${esc(c.bank.norek)}"><label>Atas nama</label><input class="in" id="ba" value="${esc(c.bank.atasNama)}"><label>Catatan</label><input class="in" id="bc" value="${esc(c.bank.catatan)}"></div>
+ <button class="btn" id="sv">Simpan Pengaturan</button><button class="btn2" id="tw">📲 Tes notifikasi WhatsApp</button>
+ <div class="card" style="margin-top:12px"><h3>Link penting</h3><p class="muted">Pemesanan klien: <b>${location.origin}/pesan.html</b></p></div>`);
+ $("#sv").onclick=async()=>{const P=JSON.parse(JSON.stringify(c.prices));$$("td input").forEach(i=>P[i.dataset.k][i.dataset.p][+i.dataset.i]=+i.value);
+  try{await A("config",{prices:P,revisiFee:{hemat:$("#rh").value,premium:$("#rpm").value},bank:{nama:$("#bn").value,norek:$("#br").value,atasNama:$("#ba").value,catatan:$("#bc").value}});toast("Tersimpan ✓")}catch(e){toast(e.message,1)}};
+ $("#tw").onclick=async()=>{const r=await A("testwa");toast(r.ok?"Terkirim, cek WhatsApp":"Gagal: "+(r.msg||"cek CALLMEBOT_APIKEY"),!r.ok)}}
+boot().catch(e=>app(`<div class="card err">${esc(e.message)}</div>`));
+</script></body></html>

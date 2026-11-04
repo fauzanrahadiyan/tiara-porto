@@ -1,0 +1,174 @@
+=====================================================================
+ PANDUAN TIARA PORTO AGENCY (TAHAP 1) — langkah demi langkah
+=====================================================================
+Isi update ini:
+ - Portofolio lama tetap jalan + tombol "Pesan video seperti ini".
+ - Halaman pesan klien:   https://tiara-porto.vercel.app/pesan.html
+ - Halaman status order:  https://tiara-porto.vercel.app/order.html?c=KODE
+ - Admin (khusus kamu):   https://tiara-porto.vercel.app/admin
+   Menu: Jasa AI · Konten Tiara · Komentar · Atur (harga & rekening)
+ - Notif WhatsApp ke 6287702700618, auto posting Reels di Jam Emas,
+   auto balas komentar logat Suroboyo.
+
+Semua layanan yang dipakai GRATIS (versi free).
+
+---------------------------------------------------------------------
+LANGKAH 1 — Upload file ke GitHub
+---------------------------------------------------------------------
+1. Ekstrak tiara-porto-agency.zip di HP/laptop.
+2. Buka repo GitHub tiara-porto kamu.
+3. Klik "Add file" > "Upload files".
+4. Seret SEMUA isi folder (folder api, public, file package.json,
+   vercel.json, panduan ini). Folder api/_lib juga harus ikut.
+   Kalau ada file dengan nama sama, otomatis ditimpa.
+5. Klik "Commit changes". Vercel otomatis deploy ulang (±1-2 menit).
+
+---------------------------------------------------------------------
+LANGKAH 2 — Penyimpanan file video/gambar: Vercel Blob (klik saja)
+---------------------------------------------------------------------
+Kenapa ini: tidak perlu daftar akun baru, cukup klik di Vercel,
+kuncinya otomatis terpasang. Gratis 1 GB (video yang sudah tayang
+di IG otomatis dihapus supaya tidak penuh).
+1. Buka vercel.com > project tiara-porto > tab "Storage".
+2. Klik "Create Database" > pilih "Blob" > Continue.
+3. Nama bebas (mis. tiara-blob) > Create > pastikan project
+   tiara-porto tercentang > "Connect".
+   -> Otomatis muncul env BLOB_READ_WRITE_TOKEN.
+
+---------------------------------------------------------------------
+LANGKAH 3 — Database order & jadwal: Upstash Redis (klik saja)
+---------------------------------------------------------------------
+1. Masih di tab "Storage" > "Create Database".
+2. Pilih "Upstash" > "Upstash for Redis" > Continue.
+3. Plan: FREE. Region: Singapore. Create.
+4. Connect ke project tiara-porto.
+   -> Otomatis muncul env KV_REST_API_URL dan KV_REST_API_TOKEN
+      (kadang bernama UPSTASH_REDIS_REST_URL/TOKEN — dua-duanya bisa).
+
+---------------------------------------------------------------------
+LANGKAH 4 — Isi Environment Variables
+---------------------------------------------------------------------
+Vercel > project > Settings > Environment Variables > Add.
+Yang SUDAH ADA (jangan dihapus): IG_ACCESS_TOKEN, IG_USER_ID,
+GEMINI_API_KEY.
+Tambahkan:
+  ADMIN_PASSWORD   = password admin buatanmu (min. 12 huruf+angka,
+                     jangan pakai password Gmail)
+  CRON_SECRET      = kata acak panjang, contoh: tiara7Kq92xLmPz51
+  CALLMEBOT_APIKEY = (dari Langkah 6)
+Opsional:
+  ADMIN_EMAILS     = fauzan.rahadiyan@gmail.com (untuk login Google)
+  GOOGLE_CLIENT_ID = (Langkah 8, opsional)
+  GEMINI_MODEL     = gemini-3.8-flash (default; kalau sibuk otomatis
+                     pindah ke gemini-3.6-flash / 3.5-flash-lite)
+  ADMIN_WA         = 6287702700618 (nomor penerima notif)
+SETELAH MENAMBAH ENV: tab Deployments > titik tiga deploy teratas >
+"Redeploy". Env baru baru berlaku setelah redeploy.
+
+---------------------------------------------------------------------
+LANGKAH 5 — Izin token Instagram (untuk posting & balas komentar)
+---------------------------------------------------------------------
+Token System User kamu perlu izin tambahan:
+  instagram_basic, instagram_content_publish, instagram_manage_comments,
+  instagram_manage_insights, pages_show_list, pages_read_engagement
+Cara:
+1. Buka business.facebook.com/settings > Users > System users.
+2. Pilih system user kamu > "Generate new token".
+3. Pilih App kamu, masa berlaku "Never".
+4. Centang SEMUA izin di atas > Generate > salin token (EAA...).
+5. Di Meta Developers > App kamu > pastikan produk "Instagram"
+   (Instagram API with Facebook Login) aktif & izin di atas tersedia.
+6. Vercel > Env > edit IG_ACCESS_TOKEN > tempel token baru > Save >
+   Redeploy.
+Catatan: aplikasi Meta mode "Development" tetap bisa dipakai untuk
+akunmu sendiri karena kamu admin app-nya.
+
+---------------------------------------------------------------------
+LANGKAH 6 — Notif WhatsApp gratis (CallMeBot)
+---------------------------------------------------------------------
+1. Simpan nomor +34 644 66 32 62 di kontak HP (nama: CallMeBot).
+   (Cek nomor terbaru di callmebot.com/blog/free-api-whatsapp-messages)
+2. Dari WA 6287702700618 kirim pesan persis:
+   I allow callmebot to send me messages
+3. Tunggu balasan berisi "APIKey: 123456".
+4. Isi env CALLMEBOT_APIKEY = 123456 > Redeploy.
+5. Tes: Admin > Atur > "Tes notifikasi WhatsApp".
+Kalau tidak diisi, aplikasi tetap jalan, hanya tidak ada notif WA.
+
+---------------------------------------------------------------------
+LANGKAH 7 — Penjadwal otomatis gratis (cron-job.org)
+---------------------------------------------------------------------
+Vercel gratis cuma bisa jalan 1x sehari (sudah dipasang jam 06.00 WIB
+sebagai cadangan). Supaya posting pas di menitnya:
+1. Daftar gratis di https://cron-job.org > "Create cronjob".
+2. Title: Tiara Porto
+   URL: https://tiara-porto.vercel.app/api/cron?secret=ISI_CRON_SECRET
+3. Schedule: Every 15 minutes (atau 10 menit).
+4. Advanced > Timeout 30 detik (maks yang diizinkan) > Create.
+Cron ini mengerjakan: hitung Jam Emas harian, posting Reels yang
+sudah waktunya, cek & balas komentar.
+
+---------------------------------------------------------------------
+LANGKAH 8 (OPSIONAL) — Login Admin pakai Google
+---------------------------------------------------------------------
+Default login admin pakai ADMIN_PASSWORD (paling simpel & aman bila
+password kuat; ada batas 10x salah per 15 menit). Kalau mau tombol
+"Login dengan Google":
+1. console.cloud.google.com > buat project > APIs & Services >
+   OAuth consent screen > External > isi nama "Tiara Porto" > simpan.
+2. Credentials > Create credentials > OAuth client ID > Web application.
+3. Authorized JavaScript origins: https://tiara-porto.vercel.app
+4. Create > salin Client ID > env GOOGLE_CLIENT_ID > Redeploy.
+Hanya email di ADMIN_EMAILS yang bisa masuk.
+
+---------------------------------------------------------------------
+CARA PAKAI SEHARI-HARI
+---------------------------------------------------------------------
+JASA AI VIDEO
+ 1. Klien buka portofolio > "Pesan video seperti ini" > isi brief.
+ 2. Kamu dapat WA "BRIEF BARU" > buka link admin.
+ 3. Terima / Tanya / Tolak. Kalau diterima, klien melihat rekening
+    BCA 0182164711 a.n. FAUZAN ARISTYO RAHADIYAN (bisa diubah di Atur).
+ 4. Klien upload bukti > kamu dapat WA > cek > "Konfirmasi Lunas".
+ 5. Pilih model > "Buat Prompt dari Brief" > Copy > generate di
+    Seedance/Grok/Omni.
+ 6. Upload hasil > "Cek Kualitas (QC)" > skor & saran. Kalau kurang,
+    "Buat prompt perbaikan".
+ 7. Upload preview > "Kirim preview ke klien" > kirim link status ke
+    klien lewat tombol "Chat klien".
+ 8. Klien Setujui / Minta Revisi (2x gratis, ke-3 dst berbayar).
+ 9. Upload file final > klien bisa download.
+KONTEN TIARA
+ 1. Admin > Konten > upload video Reels (MP4, 9:16).
+ 2. Isi ide > "Buat Caption AI" > edit bila perlu.
+ 3. "Jadwalkan Otomatis" > masuk Jam Emas terdekat yang kosong.
+ 4. "Posting Sekarang" untuk langsung tayang.
+KOMENTAR
+ 1. Admin > Komentar > centang Aktif > mode "Tinjau dulu" dulu
+    (balasan AI disetujui manual), kalau sudah percaya pindah ke
+    "Full otomatis". Simpan.
+ 2. Komentar yang isinya cuma "tiara" dilewati (diurus ManyChat).
+
+---------------------------------------------------------------------
+CARA TES SETELAH DEPLOY
+---------------------------------------------------------------------
+ 1. Buka /admin > login > Dashboard tidak ada tulisan kuning
+    "Database belum terhubung".
+ 2. Buka /pesan.html > kirim order contoh > cek WA & Dashboard.
+ 3. Proses order contoh sampai selesai, lalu hapus (tombol Hapus order).
+ 4. Buka https://tiara-porto.vercel.app/api/cron?secret=CRON_SECRET
+    harus muncul "ok":true.
+ 5. Konten > upload video pendek > Posting Sekarang > cek IG.
+
+---------------------------------------------------------------------
+BATASAN (jujur)
+---------------------------------------------------------------------
+ - Watermark preview berupa lapisan di halaman (tidak "dibakar" ke
+   video). Untuk aman, upload preview versi kecil/ber-watermark dari
+   aplikasi edit, dan file final hanya setelah klien setuju.
+ - File (bukti transfer, logo) disimpan dengan link acak yang sulit
+   ditebak, tapi bukan rahasia mutlak.
+ - QC video: video maks ±100 MB agar sempat diproses dalam 60 detik.
+ - Posting IG butuh video MP4 H.264, 9:16, 3 dtk–15 menit. Batas IG
+   ±50 posting/24 jam.
+ - Gratis Upstash: 500 ribu perintah/bulan — cukup untuk cron 15 menit.

@@ -1,1 +1,30 @@
-{"crons":[{"path":"/api/refresh","schedule":"0 3 1,15 * *"}]}
+{
+  "crons": [
+    {
+      "path": "/api/refresh",
+      "schedule": "0 3 1,15 * *"
+    },
+    {
+      "path": "/api/cron",
+      "schedule": "0 23 * * *"
+    }
+  ],
+  "functions": {
+    "api/admin.js": {
+      "maxDuration": 60
+    },
+    "api/cron.js": {
+      "maxDuration": 60
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/pesan",
+      "destination": "/pesan.html"
+    }
+  ]
+}

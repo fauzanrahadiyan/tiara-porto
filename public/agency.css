@@ -1,0 +1,26 @@
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#0b0b12;color:#eee;font-size:14px;max-width:760px;margin:auto}
+a{color:#ff6fb5}.top{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #222;position:sticky;top:0;background:#0b0b12f0;z-index:5}
+.logo{font-weight:800;font-size:18px;color:#fff;text-decoration:none}.logo b{color:#ff2d95;margin-left:3px}
+.wrap{padding:16px 16px 90px}.card{background:#15151f;border:1px solid #262636;border-radius:14px;padding:14px;margin-bottom:12px}
+h2{font-size:19px;margin-bottom:8px}h3{font-size:15px;margin-bottom:8px}.muted{color:#999;font-size:12px}.pink{color:#ff2d95}
+.btn{display:block;width:100%;padding:12px;border-radius:12px;border:0;background:linear-gradient(90deg,#ff2d95,#b82dff);color:#fff;font-weight:700;text-align:center;margin-top:8px;font-size:14px;cursor:pointer;text-decoration:none}
+.btn2{display:block;width:100%;padding:11px;border-radius:12px;border:1px solid #ff2d95;color:#ff6fb5;background:none;font-weight:700;text-align:center;margin-top:8px;font-size:13px;cursor:pointer;text-decoration:none}
+.btn:disabled,.btn2:disabled{opacity:.5}.sm{display:inline-block;width:auto;padding:7px 12px;font-size:12px;margin:4px 4px 0 0}
+.row{display:flex;gap:8px}.row>*{flex:1}.chips{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 10px}
+.chip{padding:9px 13px;border-radius:20px;border:1px solid #333;background:none;color:#ddd;font-size:13px;cursor:pointer}.chip.on{background:#ff2d95;border-color:#ff2d95;color:#fff}.chip:disabled{opacity:.35}
+.pk{border:1px solid #333;border-radius:14px;padding:12px;cursor:pointer;margin-bottom:8px}.pk.on{border-color:#ff2d95;box-shadow:0 0 0 1px #ff2d95,0 0 18px #ff2d9533}
+.in{width:100%;background:#0f0f18;border:1px solid #333;border-radius:10px;padding:10px;color:#eee;margin:4px 0 12px;font-size:14px;font-family:inherit}textarea.in{min-height:80px}
+label{font-size:12px;color:#aaa;display:block}.price{font-size:24px;font-weight:800;color:#ff2d95}
+.tl div{padding:7px 0 7px 24px;position:relative;font-size:13px;color:#888}.tl div:before{content:'';position:absolute;left:4px;top:11px;width:11px;height:11px;border-radius:50%;background:#333}
+.tl .d{color:#ddd}.tl .d:before{background:#ff2d95}.tl .c{color:#ff2d95;font-weight:700}.tl .c:before{background:#fff;box-shadow:0 0 0 3px #ff2d95}
+.badge{display:inline-block;font-size:11px;padding:3px 8px;border-radius:10px;background:#2a1020;color:#ff6fb5}.stat{font-size:20px;font-weight:800}
+pre{white-space:pre-wrap;word-break:break-word;background:#0f0f18;border:1px solid #333;border-radius:10px;padding:10px;font-size:12px;color:#cfc;max-height:340px;overflow:auto}
+.terms{margin:6px 0 0 18px;font-size:12px;color:#bbb;line-height:1.7}.ok{color:#5be39a}.err{color:#ff7a7a}.warn{background:#ffcc0018;border:1px dashed #ffcc00;color:#ffe27a;padding:8px 10px;border-radius:10px;font-size:12px;margin-bottom:10px}
+.drop{border:1px dashed #555;border-radius:10px;padding:14px;text-align:center;color:#999;font-size:12px;margin:4px 0 12px;cursor:pointer;display:block}.drop.done{border-color:#5be39a;color:#5be39a}
+.wm{position:relative;border-radius:12px;overflow:hidden;background:#000}.wm video{width:100%;display:block;max-height:70vh}
+.wm:after{content:"PREVIEW · Tiara Porto  PREVIEW · Tiara Porto  PREVIEW · Tiara Porto";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;font-size:26px;font-weight:900;color:#ffffff40;transform:rotate(-28deg);pointer-events:none;line-height:2.4;padding:20px}
+.nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#12121b;border-top:1px solid #262636;z-index:6;max-width:760px;margin:auto}.nav button{flex:1;background:none;border:0;padding:12px 4px;font-size:12px;color:#888;cursor:pointer}.nav .on{color:#ff2d95;font-weight:700}
+.li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #222;cursor:pointer}.li:last-child{border:0}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:4px;border-bottom:1px solid #222;text-align:left}td input{width:100%;background:#0f0f18;border:1px solid #333;color:#eee;border-radius:6px;padding:5px;font-size:12px}
+.toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#222;border:1px solid #ff2d95;padding:10px 16px;border-radius:12px;z-index:9;font-size:13px;max-width:90%}
+.sw{display:flex;align-items:center;justify-content:space-between;padding:6px 0}

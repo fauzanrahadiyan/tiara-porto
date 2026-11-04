@@ -1,0 +1,33 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Status Order · Tiara Porto</title><meta name="robots" content="noindex"><link rel="stylesheet" href="agency.css"></head><body>
+<div class="top"><a class="logo" href="/">Tiara<b>Porto</b></a><span class="muted" id="code"></span></div>
+<div class="wrap" id="app"><p class="muted">Memuat…</p></div>
+<script src="common.js"></script><script>
+const q=new URLSearchParams(location.search),C=q.get("c");
+const STEPS=["Brief dikirim","Disetujui","Menunggu pembayaran","Lunas","Produksi","Preview","Selesai"];
+const POS={brief:0,approved:2,proof:2,paid:4,production:4,preview:5,accepted:6,done:7,rejected:0};
+async function load(){let o;try{o=await api("/api/order?c="+encodeURIComponent(C))}catch(e){$("#app").innerHTML=`<div class="card err">${esc(e.message)}</div>`;return}
+ $("#code").textContent=o.code;const p=POS[o.status];let h="";
+ if(q.get("baru"))h+=`<div class="card"><b class="ok">✓ Brief terkirim!</b><p class="muted" style="margin-top:6px">Simpan link halaman ini untuk cek status: <br><b style="color:#fff;word-break:break-all">${esc(location.origin+"/order.html?c="+o.code)}</b></p><button class="btn2 sm" onclick="navigator.clipboard.writeText('${location.origin}/order.html?c=${o.code}');toast('Link disalin')">Salin link</button></div>`;
+ h+=`<div class="card"><h3>${esc(o.category)} · ${o.pkg=="premium"?"Paket Premium":"Paket Hemat"}</h3><div class="muted">${o.dur} dtk · ${o.ratio} · ${esc(o.res)}</div><div class="price" style="margin-top:6px">${rp(o.price)}</div></div>`;
+ if(o.status=="rejected")h+=`<div class="card err">Maaf, order ini tidak bisa kami kerjakan.${o.rejectReason?"<br>Alasan: "+esc(o.rejectReason):""}</div>`;
+ if(o.question)h+=`<div class="card"><h3>💬 Pertanyaan dari Tiara Porto</h3><p>${esc(o.question)}</p><p class="muted" style="margin-top:6px">Kami juga akan menghubungi via WhatsApp.</p></div>`;
+ h+=`<div class="card"><h3>Status</h3><div class="tl">${STEPS.map((s,i)=>`<div class="${i<p?"d":i==p?"c":""}">${s}${i==2&&o.status=="proof"?" — bukti terkirim, menunggu konfirmasi":""}${i==6&&o.status=="accepted"?" — file final sedang disiapkan":""}</div>`).join("")}</div></div>`;
+ if(o.status=="approved"||o.status=="proof"){const b=o.bank;h+=`<div class="card"><h3>Pembayaran</h3><p>Transfer <b class="pink">${rp(o.price)}</b> ke:</p><div class="in" style="margin-top:8px"><b>${esc(b.nama)}</b><br>${esc(b.norek)}<br>a.n. ${esc(b.atasNama)}</div><p class="muted">${esc(b.catatan)}</p>
+  ${o.status=="proof"?`<p class="ok" style="margin-top:8px">✓ Bukti transfer sudah dikirim. Bisa upload ulang jika salah.</p>`:""}
+  <label class="drop" id="proof" style="margin-top:10px"><input type="file" hidden accept="image/*,application/pdf"><span>⬆ Upload bukti transfer</span></label><button class="btn" id="sendProof" disabled>Kirim Bukti Transfer</button></div>`}
+ if(o.previewUrl){h+=`<div class="card"><h3>Preview Video</h3><div class="wm"><video src="${esc(o.previewUrl)}" controls playsinline controlslist="nodownload" oncontextmenu="return false"></video></div><p class="muted" style="margin-top:6px">Video preview ber-watermark. File final tanpa watermark bisa diunduh setelah disetujui.</p>`;
+  if(o.status=="preview"){const left=2-o.revCount;h+=`<button class="btn" id="ok">✓ Setujui Video</button><textarea class="in" id="rev" style="margin-top:12px" placeholder="Tulis bagian yang mau direvisi (sesuai brief)…"></textarea>
+   <button class="btn2" id="revB">Minta Revisi (${left>0?`sisa ${left}x gratis`:`berbayar ${rp(o.revisiFee)}`})</button>`}
+  h+=`</div>`}
+ if(o.revisions.length)h+=`<div class="card"><h3>Riwayat revisi (${o.revCount}/2 gratis)</h3>${o.revisions.map((r,i)=>`<p class="muted" style="margin-bottom:6px">#${i+1} · ${tgl(r.t)}${r.paid?" · berbayar":""}<br><span style="color:#ddd">${esc(r.note)}</span></p>`).join("")}</div>`;
+ if(o.finalUrl)h+=`<div class="card"><h3>🎉 Video Final</h3><a class="btn" href="${esc(o.finalUrl)}" download target="_blank">⬇ Download File Final</a><p class="muted" style="margin-top:8px">Terima kasih sudah order di Tiara Porto 💕</p></div>`;
+ h+=`<a class="btn2" target="_blank" href="https://wa.me/6287702700618?text=${encodeURIComponent("Halo Tiara Porto, saya mau tanya order "+o.code)}">Tanya via WhatsApp</a>`;
+ $("#app").innerHTML=h;
+ if($("#proof"))dropper($("#proof"),"proof",()=>$("#sendProof").disabled=false);
+ if($("#sendProof"))$("#sendProof").onclick=async()=>{try{await api("/api/order",{action:"proof",c:C,url:$("#proof").dataset.url});toast("Bukti terkirim ✓");load()}catch(e){toast(e.message,1)}};
+ if($("#ok"))$("#ok").onclick=async()=>{if(!confirm("Setujui video ini sebagai final?"))return;try{await api("/api/order",{action:"approve",c:C});load()}catch(e){toast(e.message,1)}};
+ if($("#revB"))$("#revB").onclick=async()=>{const n=$("#rev").value.trim();if(!n)return toast("Tulis dulu revisinya",1);if(o.revCount>=2&&!confirm(`Revisi ke-${o.revCount+1} berbayar ${rp(o.revisiFee)}. Lanjut?`))return;try{await api("/api/order",{action:"revise",c:C,note:n});toast("Permintaan revisi terkirim");load()}catch(e){toast(e.message,1)}};
+}
+load();
+</script></body></html>

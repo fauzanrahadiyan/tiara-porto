@@ -1,0 +1,50 @@
+<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pesan Video AI · Tiara Porto</title><link rel="stylesheet" href="agency.css"></head><body>
+<div class="top"><a class="logo" href="/">Tiara<b>Porto</b></a><a href="/" class="muted">← Portofolio</a></div>
+<div class="wrap">
+<h2>Pesan Video AI</h2><p class="muted" style="margin-bottom:12px">Pilih jenis, paket & durasi — harga langsung muncul.</p>
+<label>Jenis video</label><div id="cats" class="chips"></div>
+<label>Paket</label><div id="pkgs"></div>
+<label>Durasi</label><div id="durs" class="chips"></div>
+<div class="card row" style="align-items:center"><span>Total<br><small class="muted" id="sum"></small></span><span class="price" id="price" style="text-align:right">-</span></div>
+<div class="card"><h3>Syarat Revisi</h3><ul class="terms">
+<li>Termasuk maksimal <b>2x revisi</b>, hanya untuk hal yang ada di brief.</li>
+<li>Ganti konsep = dihitung <b>order baru</b>.</li>
+<li>Revisi ke-3 dst: <span id="fee"></span> per revisi.</li>
+<li>Pembayaran di awal, sebelum video dikerjakan.</li></ul></div>
+
+<h2 style="margin-top:18px">Brief Video</h2>
+<form id="f">
+<label>Rasio</label><div class="chips" id="ratio"><button type="button" class="chip on" data-v="9:16">9:16 Vertikal</button><button type="button" class="chip" data-v="16:9">16:9 Horizontal</button></div>
+<label>Resolusi</label><div class="in" id="res" style="color:#bbb">Full HD 1080p</div>
+<label>Deskripsi video *</label><textarea class="in" name="desc" required placeholder="Contoh: iklan kopi susu, model wanita di kafe, nuansa hangat sore, ada tulisan promo 20%…"></textarea>
+<label>Link referensi (opsional)</label><input class="in" name="refLink" placeholder="https://… (TikTok/IG/YouTube/Drive)">
+<label class="drop" id="ref"><input type="file" hidden accept="image/*,video/*,application/pdf"><span>📎 Upload file referensi (opsional)</span></label>
+<label>Logo perusahaan/brand (opsional)</label>
+<label class="drop" id="logo"><input type="file" hidden accept="image/*"><span>⬆ Upload logo PNG/SVG/JPG</span></label>
+<label>Catatan lain-lain</label><textarea class="in" name="notes" placeholder="Contoh: warna brand, teks yang wajib muncul, deadline…"></textarea>
+<label>Nama *</label><input class="in" name="name" required maxlength="80">
+<label>No. WhatsApp *</label><input class="in" name="wa" required inputmode="tel" placeholder="08xx-xxxx-xxxx">
+<div class="card"><h3>Syarat & Ketentuan</h3><ul class="terms"><li>Maksimal 2x revisi sesuai brief</li><li>Ganti konsep = order baru</li><li>Revisi ke-3 dst: Rp50rb (Hemat) / Rp100rb (Premium)</li><li>Pembayaran di awal sebelum dikerjakan</li></ul>
+<label style="font-size:13px;color:#eee;margin-top:10px;display:flex;gap:8px;align-items:center"><input type="checkbox" name="agree" style="width:18px;height:18px;accent-color:#ff2d95"> Saya setuju dengan syarat revisi</label></div>
+<button class="btn" id="send">Kirim Brief</button>
+<p class="muted" style="margin-top:8px;text-align:center">Setelah dikirim kamu dapat link status order. Simpan link itu ya.</p>
+</form></div>
+<script src="common.js"></script><script>
+const q=new URLSearchParams(location.search);let C,S={cat:q.get("cat"),pkg:q.get("pkg")||"hemat",dur:+q.get("dur")||15,ratio:"9:16"};
+function draw(){const P=C.prices;if(!P[S.cat])S.cat=Object.keys(P)[0];
+ $("#cats").innerHTML=Object.keys(P).map(c=>`<button type=button class="chip ${c==S.cat?"on":""}" data-c="${esc(c)}">${esc(c)}</button>`).join("");
+ $("#pkgs").innerHTML=["hemat","premium"].map(k=>{const p=C.packages[k],from=Math.min(...P[S.cat][k].filter(Boolean));return `<div class="pk ${k==S.pkg?"on":""}" data-k="${k}"><div class="row"><b>${esc(p.name)}</b><span class="pink" style="text-align:right;font-weight:700">mulai ${rpk(from)}</span></div><div class="muted">${esc(p.model)} · ${esc(p.res)} · 2x revisi</div></div>`}).join("");
+ const arr=P[S.cat][S.pkg];if(!arr[C.durs.indexOf(S.dur)])S.dur=C.durs[arr.findIndex(Boolean)];
+ $("#durs").innerHTML=C.durs.map((d,i)=>`<button type=button class="chip ${d==S.dur?"on":""}" data-d="${d}" ${arr[i]?"":"disabled"}>${d} dtk</button>`).join("");
+ const pr=arr[C.durs.indexOf(S.dur)];$("#price").textContent=rp(pr);$("#sum").textContent=`${S.cat} · ${C.packages[S.pkg].name} · ${S.dur} dtk`;
+ $("#res").textContent=C.packages[S.pkg].res;$("#fee").textContent=`${rpk(C.revisiFee.hemat)} (Hemat) / ${rpk(C.revisiFee.premium)} (Premium)`;
+ $$("#cats .chip").forEach(b=>b.onclick=()=>{S.cat=b.dataset.c;draw()});$$(".pk").forEach(b=>b.onclick=()=>{S.pkg=b.dataset.k;draw()});$$("#durs .chip").forEach(b=>b.onclick=()=>{S.dur=+b.dataset.d;draw()});}
+$$("#ratio .chip").forEach(b=>b.onclick=()=>{S.ratio=b.dataset.v;$$("#ratio .chip").forEach(x=>x.classList.toggle("on",x==b))});
+dropper($("#ref"),"ref");dropper($("#logo"),"logo");
+$("#f").onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);if(!f.get("agree"))return toast("Centang persetujuan syarat revisi dulu ya",1);
+ $("#send").disabled=true;$("#send").textContent="Mengirim…";
+ try{const r=await api("/api/order",{action:"create",category:S.cat,pkg:S.pkg,dur:S.dur,ratio:S.ratio,desc:f.get("desc"),refLink:f.get("refLink"),refFiles:$("#ref").dataset.url?[$("#ref").dataset.url]:[],logoUrl:$("#logo").dataset.url||"",notes:f.get("notes"),name:f.get("name"),wa:f.get("wa"),agree:true});
+  location.href="/order.html?c="+r.code+"&baru=1"}catch(err){toast(err.message,1);$("#send").disabled=false;$("#send").textContent="Kirim Brief"}};
+api("/api/order?action=config").then(c=>{C=c;draw()}).catch(e=>toast(e.message,1));
+</script></body></html>

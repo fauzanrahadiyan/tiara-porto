@@ -50,12 +50,12 @@ async function gemini(todo, cats, key) {
     `Jawab HANYA JSON objek {"<id>":"<kategori persis>"} untuk semua id.\n\n` +
     todo.map(t => `${t.id}: ${(t.caption || "").slice(0, 250).replace(/\s+/g, " ")}`).join("\n");
   let lastErr = "";
-  for (const model of ["gemini-2.5-flash", "gemini-2.0-flash"]) {
+  for (const model of require("./_lib/util").MODELS()) {
     const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), 25000);
     try {
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: "POST", signal: ac.signal, headers: { "content-type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0, thinkingConfig: model.startsWith("gemini-2.5") ? { thinkingBudget: 0 } : undefined } }),
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }),
       });
       const j = await r.json();
       if (j.error) throw new Error(j.error.message);
