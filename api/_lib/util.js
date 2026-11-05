@@ -76,7 +76,15 @@ async function ig(path, params = {}, method = "GET") {
   const qs = new URLSearchParams({ ...params, access_token: token });
   const r = await fetch(`${G}/${path}${method === "GET" ? "?" + qs : ""}`, method === "GET" ? {} : { method, body: qs });
   const j = await r.json();
-  if (j.error) throw new Error("Instagram: " + j.error.message);
+  if (j.error) {
+    const e = j.error, parts = [e.message];
+    if (e.error_user_title) parts.push(e.error_user_title);
+    if (e.error_user_msg) parts.push(e.error_user_msg);
+    parts.push(`[code ${e.code ?? "-"}${e.error_subcode ? "/" + e.error_subcode : ""}${e.type ? " " + e.type : ""}${e.fbtrace_id ? " trace " + e.fbtrace_id : ""}]`);
+    if (e.code === 190) parts.push("→ Token IG kedaluwarsa/invalid: buat token baru & isi ulang IG_ACCESS_TOKEN di Vercel.");
+    if (e.code === 10 || e.code === 200) parts.push("→ Izin kurang: pastikan instagram_content_publish / instagram_business_content_publish aktif.");
+    const err = new Error("Instagram: " + parts.filter(Boolean).join(" — ")); err.ig = e; throw err;
+  }
   return j;
 }
 

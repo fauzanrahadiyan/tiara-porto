@@ -65,11 +65,18 @@ async function autoSchedule() {
 // ---------- PUBLISH REELS (bertahap, aman untuk batas waktu serverless) ----------
 async function checkVideoUrl(url) {
   if (!url) return "Link video kosong — upload ulang videonya.";
+  if (!/^https:\/\//i.test(url)) return "Link video bukan HTTPS publik (" + String(url).slice(0, 60) + ") — Instagram hanya bisa ambil video dari link https publik. Pastikan BLOB_READ_WRITE_TOKEN terisi di Vercel lalu upload ulang.";
   try {
     let r = await fetch(url, { method: "HEAD" });
     if (r.status === 405 || r.status === 403) r = await fetch(url, { method: "GET", headers: { Range: "bytes=0-0" } });
     if (r.status === 404) return "Video sudah tidak ada di penyimpanan (404) — upload ulang videonya.";
     if (!r.ok && r.status !== 206) return "Link video tidak bisa dibuka Instagram (HTTP " + r.status + ") — upload ulang videonya.";
+    const type = String(r.headers.get("content-type") || "").toLowerCase();
+    let size = Number(r.headers.get("content-length") || 0);
+    const cr = r.headers.get("content-range"); if (cr && /\/(\d+)/.test(cr)) size = Number(cr.match(/\/(\d+)/)[1]);
+    if (type && !/^video\/(mp4|quicktime)/.test(type)) return "File bukan video MP4/MOV (tipe: " + type + ") — export ulang jadi MP4 (H.264 + AAC).";
+    if (size && size > 300 * 1024 * 1024) return "Ukuran video " + Math.round(size / 1048576) + "MB, batas Reels 300MB — kompres dulu.";
+    if (size && size < 50 * 1024) return "File video terlalu kecil/rusak (" + Math.round(size / 1024) + "KB) — upload ulang.";
     return null;
   } catch (e) { return "Link video tidak bisa diakses: " + e.message; }
 }
@@ -80,14 +87,16 @@ async function stepItem(it) {
   if (!it.containerId) {
     const bad = it.videoDeleted ? "Video sudah dihapus dari penyimpanan — upload ulang videonya." : await checkVideoUrl(it.videoUrl);
     if (bad) { it.status = "failed"; it.log = "Gagal sebelum kirim ke IG: " + bad; return it; }
-    const c = await U.ig(`${uid}/media`, { media_type: "REELS", video_url: it.videoUrl, caption: it.caption || "", share_to_feed: "true" }, "POST");
+    let c;
+    try { c = await U.ig(`${uid}/media`, { media_type: "REELS", video_url: it.videoUrl, caption: String(it.caption || "").slice(0, 2200), share_to_feed: "true" }, "POST"); }
+    catch (e) { e.message = "[tahap buat kiriman] " + e.message; throw e; }
     it.containerId = c.id; it.status = "processing"; it.processingSince = Date.now(); it.log = "Video dikirim ke Instagram, sedang diproses…";
   }
   if (!it.processingSince) it.processingSince = Date.now();
   for (let i = 0; i < 6; i++) {
-    const s = await U.ig(it.containerId, { fields: "status_code,status" });
+    const s = await U.ig(it.containerId, { fields: "status_code,status" }).catch(e => { e.message = "[tahap cek status] " + e.message; throw e; });
     if (s.status_code === "FINISHED") {
-      const p = await U.ig(`${uid}/media_publish`, { creation_id: it.containerId }, "POST");
+      const p = await U.ig(`${uid}/media_publish`, { creation_id: it.containerId }, "POST").catch(e => { e.message = "[tahap tayang] " + e.message; throw e; });
       it.mediaId = p.id; it.status = "posted"; it.postedAt = Date.now(); it.log = "Sudah tayang ✅";
       try { const m = await U.ig(p.id, { fields: "permalink" }); it.permalink = m.permalink; } catch (e) {}
       let keep = false; try { keep = await T.ttMark(it); } catch (e) { it.tt = { status: "failed", log: e.message }; }
@@ -99,7 +108,7 @@ async function stepItem(it) {
     const code = String(s.status_code || ""), msg = String(s.status || "");
     if (code === "ERROR" || code === "EXPIRED" || /fatal|error/i.test(msg)) {
       it.status = "failed";
-      resetContainer(it, `Instagram menolak video (status_code: ${code || "-"}, pesan: ${msg || "-"}). Klik "Posting Sekarang" untuk coba ulang dengan kiriman baru. Kalau tetap gagal, cek format video (MP4, 9:16, 3–90 dtk) atau ganti caption.`);
+      resetContainer(it, `Instagram menolak video (status_code: ${code || "-"}, pesan: ${msg || "-"}). Klik "Posting Sekarang" untuk coba ulang dengan kiriman baru. Biasanya video tidak cocok: wajib MP4 H.264 + AAC (bukan HEVC/H.265 dari iPhone), 9:16, 3–90 dtk, ≤300MB, 23–60fps. Export ulang lewat CapCut (1080x1920, 30fps) lalu upload lagi.`);
       return it;
     }
     if (code !== "IN_PROGRESS" && code !== "PUBLISHED") break;
