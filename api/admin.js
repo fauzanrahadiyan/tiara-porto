@@ -188,6 +188,14 @@ Tulis captionnya saja tanpa penjelasan.`);
       }
       return res.json(await T.ttStatus());
     }
+    if (action === "mirror") {
+      const MR = require("./_lib/mirror");
+      if (req.method === "POST") {
+        if (b.op === "settings") await MR.setEnabled(!!b.enabled);
+        if (b.op === "run") { const r = await MR.cronJobs(); const TT = await T.tiktokDue().catch(e => ({ error: e.message })); const TR = await TH.threadsDue().catch(e => ({ error: e.message })); return res.json({ result: r, tt: TT, th: TR, ...(await MR.mirrorStatus()) }); }
+      }
+      return res.json(await MR.mirrorStatus());
+    }
     // ---------- THREADS ----------
     if (action === "threads_callback") {
       try { await TH.thCallback(q); res.statusCode = 302; res.setHeader("Location", "/admin?th=ok"); }

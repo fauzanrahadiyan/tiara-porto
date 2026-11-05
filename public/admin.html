@@ -61,7 +61,7 @@ async function openOrder(c){location.hash=c;const o=await A("order&c="+c);const 
  let fnUrl="";if($("#fn")){dropper($("#fn"),"admin",u=>{fnUrl=u;$("#sendFn").disabled=false});$("#sendFn").onclick=()=>act("final",{url:fnUrl})}}
 
 // ===== KONTEN TIARA =====
-async function konten(){const [g,qd,ttc,thc]=await Promise.all([A("golden").catch(e=>({slots:["12:15","19:30"],reason:e.message})),A("queue"),tiktokCard(),threadsCard()]);
+async function konten(){const [g,qd,ttc,thc,mrc]=await Promise.all([A("golden").catch(e=>({slots:["12:15","19:30"],reason:e.message})),A("queue"),tiktokCard(),threadsCard(),mirrorCard()]);
  const icon={queued:"⏳",scheduled:"🗓️",processing:"⚙️",posted:"✅",failed:"❌"};
  app(`<h2>Konten Tiara</h2>
  <div class="card"><div class="row"><h3>⭐ Jam Emas Hari Ini</h3><button class="btn2 sm" id="rg" style="flex:0 0 auto;margin:0">↻ Hitung ulang</button></div><div class="chips">${g.slots.map(s=>`<span class="chip on">${s} WIB</span>`).join("")}</div><p class="muted">${esc(g.reason||"")} ${g.source?`(sumber: ${esc(g.source)})`:""}</p></div>
@@ -71,10 +71,11 @@ async function konten(){const [g,qd,ttc,thc]=await Promise.all([A("golden").catc
   <label>Jadwal manual (opsional — kosongkan untuk otomatis di Jam Emas)</label><input class="in" type="datetime-local" id="at">
   <button class="btn" id="add" disabled>🗓️ Jadwalkan Otomatis</button></div>
  ${ttc}
+ ${mrc}
  ${thc}
  <div class="card"><h3>Kalender Konten</h3>${qd.queue.length?qd.queue.map(i=>`<div class="li" style="cursor:default"><div style="min-width:0"><b>${icon[i.status]||""} ${i.scheduledAt?tgl(i.scheduledAt):"Menunggu slot"}</b><div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px">${esc((i.caption||"").split("\n")[0])}</div>${i.log?`<div class="muted ${i.status=="failed"?"err":""}">${esc(i.log)}</div>`:""}${i.permalink?`<a href="${esc(i.permalink)}" target="_blank" class="muted">Lihat di IG</a>`:""}${i.tt?`<div class="muted ${i.tt.status=="failed"?"err":""}">🎵 TikTok: ${esc(i.tt.log||i.tt.status)}</div>`:""}${i.tt&&i.tt.status=="failed"&&!i.videoDeleted?`<button class="btn2 sm" data-ttr="${i.id}">Kirim ulang ke TikTok</button>`:""}${i.th?`<div class="muted ${i.th.status=="failed"?"err":""}">🧵 Threads: ${esc(i.th.log||i.th.status)}</div>`:""}${i.th&&i.th.status=="failed"&&!i.videoDeleted?`<button class="btn2 sm" data-thr="${i.id}">Kirim ulang ke Threads</button>`:""}</div>
   <div style="flex:0 0 auto">${i.status!="posted"?`<button class="btn sm" data-now="${i.id}">Posting Sekarang</button><br><button class="btn2 sm" data-del="${i.id}">Hapus</button>`:""}</div></div>`).join(""):`<p class="muted">Belum ada antrean.</p>`}</div>`);
- tiktokBind();threadsBind();
+ tiktokBind();threadsBind();mirrorBind();
  $("#rg").onclick=async()=>{toast("Menghitung jam emas…");await A("golden&force=1");konten()};
  let vurl="";dropper($("#vu"),"admin",u=>{vurl=u;$("#add").disabled=false});
  $("#gc").onclick=async()=>{const b=$("#gc");b.disabled=true;b.textContent="Menulis caption…";try{$("#cap").value=(await A("caption",{idea:$("#idea").value})).caption}catch(e){toast(e.message,1)}b.disabled=false;b.textContent="✨ Buat Caption AI"};
@@ -186,6 +187,13 @@ async function tiktokCard(){const t=await A("tiktok").catch(e=>({err:e.message})
  <button class="btn sm" id="tts">Simpan TikTok</button><p class="muted" style="margin-top:6px">Caption TikTok dibuat Gemini dari caption IG. Selama aplikasi TikTok belum lolos audit, video masuk sebagai privat — buka TikTok lalu ubah ke Publik.</p></div>`}
 const SW=(id,on,t)=>`<div class="sw" style="margin-top:8px"><b>${t}</b><input type="checkbox" id="${id}" ${on?"checked":""} style="width:22px;height:22px;accent-color:#ff2d95"></div>`;
 const CH=(id,v,opts)=>`<div class="chips" id="${id}">${opts.map(([k,l])=>`<button class="chip ${v==k?"on":""}" data-v="${k}">${l}</button>`).join("")}</div>`;
+async function mirrorCard(){const m=await A("mirror").catch(e=>({err:e.message}));if(m.err)return `<div class="card err">${esc(m.err)}</div>`;
+ return `<div class="card"><h3>📱 Mirror Reels dari IG → Threads/TikTok</h3><p class="muted">Posting Reels langsung di aplikasi Instagram. Tiap ±15 menit sistem cek Reels baru lalu otomatis kirim ke Threads & TikTok (pakai caption yang sama).</p>
+ ${SW("mr1",m.settings.enabled,"Mirror Reels dari IG → Threads/TikTok")}<button class="btn sm" id="mrs">Simpan</button> <button class="btn2 sm" id="mrr">🔄 Cek sekarang</button>
+ ${m.lastRun?`<p class="muted">Cek terakhir: ${tgl(m.lastRun.at)}</p>`:""}
+ ${m.items.length?m.items.map(i=>`<div class="li" style="cursor:default"><div style="min-width:0"><b>📱 ${tgl(i.at)}</b><div class="muted">${esc(i.caption)}</div>${i.permalink?`<a href="${esc(i.permalink)}" target="_blank" class="muted">Lihat di IG</a>`:""}<div class="muted ${i.th&&i.th.status=="failed"?"err":""}">🧵 Threads: ${esc(i.th?(i.th.log||i.th.status):"tidak dikirim")}</div><div class="muted ${i.tt&&i.tt.status=="failed"?"err":""}">🎵 TikTok: ${esc(i.tt?(i.tt.log||i.tt.status):"tidak dikirim")}</div></div></div>`).join(""):`<p class="muted">Belum ada Reels yang di-mirror.</p>`}</div>`}
+function mirrorBind(){if($("#mrs"))$("#mrs").onclick=async()=>{try{await A("mirror",{op:"settings",enabled:$("#mr1").checked});toast("Tersimpan ✓");konten()}catch(e){toast(e.message,1)}};
+ if($("#mrr"))$("#mrr").onclick=async()=>{const b=$("#mrr");b.disabled=true;b.textContent="Mengecek…";try{const r=await A("mirror",{op:"run"});toast(r.result.msg||("Reels baru: "+((r.result.added||[]).length)));konten()}catch(e){toast(e.message,1);b.disabled=false}}}
 async function threadsCard(){const t=await A("threads").catch(e=>({err:e.message}));if(t.err)return `<div class="card err">${esc(t.err)}</div>`;const s=t.settings;
  const tx=(t.texts||[]).map(p=>`<div class="card" style="background:#10101a"><span class="muted">${tgl(p.t)} · ${p.status=="posted"?"✅ Terposting":p.status=="review"?"📝 Menunggu dicek":"❌ "+esc(p.log||"Gagal")}${p.soft?" · 💬 soft-sell":""}</span>${p.status=="posted"?`<p>${esc(p.text)}</p>`:`<textarea class="in" data-tht="${p.id}" style="min-height:70px">${esc(p.text)}</textarea><button class="btn sm" data-ths="${p.id}">Posting</button><button class="btn2 sm" data-thx="${p.id}">Hapus</button>`}</div>`).join("");
  return `<div class="card"><div class="row"><h3>🧵 Threads</h3><span style="text-align:right"><span class="badge">${!t.env?"Belum diatur":t.connected?"Terhubung":"Belum terhubung"}</span></span></div>
