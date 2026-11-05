@@ -66,26 +66,165 @@ async function geminiFile(url, mime = "video/mp4") {
 }
 
 // ===== Instagram Graph =====
+const dns = require("dns");
+const https = require("https");
+const http = require("http");
+const { URL } = require("url");
+const IG_VER = () => clean(process.env.IG_GRAPH_VERSION) || "v23.0";
 const IG = () => {
   const token = clean(process.env.IG_ACCESS_TOKEN), uid = clean(process.env.IG_USER_ID);
-  const G = token.startsWith("EAA") ? "https://graph.facebook.com/v23.0" : "https://graph.instagram.com/v23.0";
-  return { token, uid, G, ok: !!(token && uid) };
+  const ver = IG_VER();
+  const isEAA = token.startsWith("EAA"); // Page/User token Facebook Login → graph.facebook.com
+  const primary = isEAA ? `https://graph.facebook.com/${ver}` : `https://graph.instagram.com/${ver}`;
+  const alternate = isEAA ? `https://graph.instagram.com/${ver}` : `https://graph.facebook.com/${ver}`;
+  return { token, uid, G: primary, primary, alternate, isEAA, ver, ok: !!(token && uid) };
 };
-async function ig(path, params = {}, method = "GET") {
-  const { token, G } = IG();
-  const qs = new URLSearchParams({ ...params, access_token: token });
-  const r = await fetch(`${G}/${path}${method === "GET" ? "?" + qs : ""}`, method === "GET" ? {} : { method, body: qs });
-  const j = await r.json();
-  if (j.error) {
-    const e = j.error, parts = [e.message];
-    if (e.error_user_title) parts.push(e.error_user_title);
-    if (e.error_user_msg) parts.push(e.error_user_msg);
-    parts.push(`[code ${e.code ?? "-"}${e.error_subcode ? "/" + e.error_subcode : ""}${e.type ? " " + e.type : ""}${e.fbtrace_id ? " trace " + e.fbtrace_id : ""}]`);
-    if (e.code === 190) parts.push("→ Token IG kedaluwarsa/invalid: buat token baru & isi ulang IG_ACCESS_TOKEN di Vercel.");
-    if (e.code === 10 || e.code === 200) parts.push("→ Izin kurang: pastikan instagram_content_publish / instagram_business_content_publish aktif.");
-    const err = new Error("Instagram: " + parts.filter(Boolean).join(" — ")); err.ig = e; throw err;
+function lookup4(hostname, options, cb) {
+  if (typeof options === "function") { cb = options; options = {}; }
+  return dns.lookup(hostname, { ...(typeof options === "object" ? options : {}), family: 4 }, cb);
+}
+function rawRequest(url, { method = "GET", headers = {}, body, ipv4 = false, timeout = 60000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const lib = u.protocol === "http:" ? http : https;
+    const opts = {
+      protocol: u.protocol, hostname: u.hostname, port: u.port || (u.protocol === "http:" ? 80 : 443),
+      path: u.pathname + u.search, method, headers, timeout,
+    };
+    if (ipv4) opts.lookup = lookup4;
+    const req = lib.request(opts, res => {
+      const chunks = [];
+      res.on("data", c => chunks.push(c));
+      res.on("end", () => {
+        const buf = Buffer.concat(chunks);
+        const text = buf.toString("utf8");
+        let json = null; try { json = JSON.parse(text || "{}"); } catch (e) { json = { raw: text.slice(0, 500) }; }
+        resolve({ status: res.statusCode || 0, headers: res.headers, json, buf, text });
+      });
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+function formatIgError(e, extra) {
+  const parts = [e.message];
+  if (e.error_user_title) parts.push(e.error_user_title);
+  if (e.error_user_msg) parts.push(e.error_user_msg);
+  parts.push(`[code ${e.code ?? "-"}${e.error_subcode ? "/" + e.error_subcode : ""}${e.type ? " " + e.type : ""}${e.fbtrace_id ? " trace " + e.fbtrace_id : ""}]`);
+  if (e.code === 190) parts.push("→ Token IG kedaluwarsa/invalid: buat token baru & isi ulang IG_ACCESS_TOKEN di Vercel.");
+  if (e.code === 10 || e.code === 200) parts.push("→ Izin kurang: pastikan instagram_content_publish / instagram_business_content_publish aktif.");
+  if (Number(e.error_subcode) === 2207085 || Number(e.code) === -1) {
+    parts.push("→ Meta 2207085 (internal). Cek di Meta Developer: App Mode Live, izin content_publish aktif, akun IG Business/Creator terhubung ke Page, token Page (EAA…) masih valid lewat /debug_token. Kalau Image OK tapi Reels gagal, biasanya bug/infra Meta atau jalur IPv6 — sistem sudah coba IPv4 + host alternatif + upload resumable.");
   }
+  if (extra) parts.push(extra);
+  return parts.filter(Boolean).join(" — ");
+}
+function throwIg(j, extra) {
+  const e = j.error || { message: "unknown" };
+  const err = new Error("Instagram: " + formatIgError(e, extra));
+  err.ig = e; throw err;
+}
+async function igAt(base, path, params = {}, method = "GET", { ipv4 = false } = {}) {
+  const { token } = IG();
+  const qs = new URLSearchParams({ ...params, access_token: token });
+  const url = `${base.replace(/\/$/, "")}/${String(path).replace(/^\//, "")}${method === "GET" ? "?" + qs : ""}`;
+  const headers = { "user-agent": "TiaraPortoBot/2.0 (+https://tiara.porto)", accept: "application/json" };
+  let j;
+  if (ipv4) {
+    try {
+      const body = method === "GET" ? undefined : Buffer.from(qs.toString());
+      if (method !== "GET") Object.assign(headers, { "content-type": "application/x-www-form-urlencoded", "content-length": String(body.length) });
+      const r = await rawRequest(url, { method, headers, body, ipv4: true });
+      j = r.json || {};
+    } catch (net) {
+      // fallback ke fetch biasa kalau lookup IPv4 gagal di runtime
+      const r = await fetch(url, method === "GET" ? { headers } : { method, headers: { ...headers, "content-type": "application/x-www-form-urlencoded" }, body: qs });
+      j = await r.json();
+    }
+  } else {
+    const r = await fetch(url, method === "GET" ? { headers } : { method, headers: { ...headers, "content-type": "application/x-www-form-urlencoded" }, body: qs });
+    j = await r.json();
+  }
+  if (j.error) throwIg(j, ipv4 ? "[via IPv4]" : "");
   return j;
+}
+async function ig(path, params = {}, method = "GET") {
+  return igAt(IG().primary, path, params, method, { ipv4: false });
+}
+function is2207085(err) {
+  const g = (err && err.ig) || {};
+  return Number(g.error_subcode) === 2207085 || /2207085/.test(String(err && err.message || "")) || (Number(g.code) === -1 && /fatal/i.test(String(g.message || "")));
+}
+/** media_publish dengan jalur alternatif: host utama → IPv4 → host cadangan IPv4 */
+async function igPublish(uid, creationId) {
+  const { primary, alternate } = IG();
+  const tries = [
+    { base: primary, ipv4: false, tag: "host-utama" },
+    { base: primary, ipv4: true, tag: "host-utama+IPv4" },
+    { base: alternate, ipv4: true, tag: "host-cadangan+IPv4" },
+  ];
+  let last = null;
+  for (let i = 0; i < tries.length; i++) {
+    const t = tries[i];
+    try {
+      const j = await igAt(t.base, `${uid}/media_publish`, { creation_id: creationId }, "POST", { ipv4: t.ipv4 });
+      j._via = t.tag; return j;
+    } catch (e) {
+      const wrapped = e; wrapped.message = `[${t.tag}] ` + e.message; last = wrapped;
+      const code = Number((e.ig || {}).code);
+      // di percobaan pertama: error selain internal/sudah-tayang langsung lempar
+      if (i === 0 && !is2207085(e) && code !== 24) throw wrapped;
+      // di percobaan berikutnya: host cadangan bisa ditolak token — lanjut saja
+      await new Promise(r => setTimeout(r, 1200));
+    }
+  }
+  throw last || new Error("media_publish gagal tanpa detail");
+}
+/** Buat container Reels lewat upload resumable (Meta tarik video / binary), khusus token EAA + graph.facebook.com */
+async function igResumableReel({ videoUrl, caption, coverUrl }) {
+  const { token, uid, primary, isEAA, ver } = IG();
+  if (!isEAA) {
+    const err = new Error("Upload resumable butuh token Facebook Page (diawali EAA…). Token Instagram Login tidak mendukung rupload.facebook.com — buat ulang token lewat Facebook Login for Business / Graph API Explorer (Page token) lalu isi IG_ACCESS_TOKEN.");
+    err.code = "NEED_EAA"; throw err;
+  }
+  const base = primary.includes("graph.facebook.com") ? primary : `https://graph.facebook.com/${ver}`;
+  const body = { media_type: "REELS", upload_type: "resumable", caption: String(caption || "").slice(0, 2200) };
+  if (coverUrl) body.cover_url = coverUrl;
+  const created = await igAt(base, `${uid}/media`, body, "POST", { ipv4: true }).catch(e => {
+    // beberapa app hanya terima di host facebook tanpa ipv4
+    return igAt(base, `${uid}/media`, body, "POST", { ipv4: false });
+  });
+  if (!created.id) throw new Error("Resumable: container kosong — " + JSON.stringify(created).slice(0, 180));
+  const uploadUri = created.uri || `https://rupload.facebook.com/ig-api-upload/${ver}/${created.id}`;
+  // 1) coba file_url (Meta yang tarik dari Blob)
+  let upOk = false, upLast = "";
+  try {
+    const r = await rawRequest(uploadUri, {
+      method: "POST", ipv4: true, timeout: 120000,
+      headers: { Authorization: `OAuth ${token}`, file_url: videoUrl, "user-agent": "TiaraPortoBot/2.0", accept: "application/json" },
+    });
+    if (r.json && r.json.success) upOk = true; else upLast = JSON.stringify(r.json || r.text).slice(0, 220);
+  } catch (e) { upLast = e.message; }
+  // 2) fallback: unduh video lalu kirim binary (batas ~95MB agar muat memori serverless)
+  if (!upOk) {
+    const vr = await fetch(videoUrl);
+    if (!vr.ok) throw new Error("Resumable: gagal unduh video dari Blob (HTTP " + vr.status + ")");
+    const buf = Buffer.from(await vr.arrayBuffer());
+    if (buf.length > 95 * 1024 * 1024) throw new Error("Resumable: video " + Math.round(buf.length / 1048576) + "MB terlalu besar untuk upload binary di server (maks ~95MB). Kompres dulu atau pastikan file_url jalan. Detail file_url: " + upLast);
+    const r = await rawRequest(uploadUri, {
+      method: "POST", ipv4: true, timeout: 180000, body: buf,
+      headers: {
+        Authorization: `OAuth ${token}`, offset: "0", file_size: String(buf.length),
+        "content-type": "application/octet-stream", "user-agent": "TiaraPortoBot/2.0",
+        "content-length": String(buf.length),
+      },
+    });
+    if (!(r.json && r.json.success)) throw new Error("Resumable upload gagal: " + JSON.stringify(r.json || r.text).slice(0, 240) + (upLast ? " | file_url: " + upLast : ""));
+    upOk = true;
+  }
+  return { id: created.id, uri: uploadUri, method: "resumable" };
 }
 
 // ===== Notifikasi Telegram (gratis) =====
@@ -147,4 +286,4 @@ async function delBlob(url) {
   if (!url || !process.env.BLOB_READ_WRITE_TOKEN || !/blob\.vercel-storage\.com/.test(url)) return;
   try { const { del } = require("@vercel/blob"); await del(url); } catch (e) { console.error("del blob", e.message); }
 }
-module.exports = { DURS, DEFAULT_CONFIG, getConfig, gemini, geminiFile, IG, ig, notifyWA, notifyTG, ADMIN_EMAILS, makeSession, readSession, safeEq, body, code, rp, str, baseUrl, wib, clean, delBlob, MODELS };
+module.exports = { DURS, DEFAULT_CONFIG, getConfig, gemini, geminiFile, IG, ig, igAt, igPublish, igResumableReel, is2207085, notifyWA, notifyTG, ADMIN_EMAILS, makeSession, readSession, safeEq, body, code, rp, str, baseUrl, wib, clean, delBlob, MODELS };

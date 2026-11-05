@@ -83,30 +83,86 @@ async function checkVideoUrl(url) {
 function resetContainer(it, why) { it.containerId = null; it.processingSince = null; it.finishedAt = null; it.metaNote = null; it.log = why; }
 const STUCK_MS = 45 * 6e4;
 function isMetaInternal(e) {
-  const g = (e && e.ig) || {};
-  return Number(g.error_subcode) === 2207085 || /2207085/.test(String(e && e.message)) || (Number(g.code) === -1) || /fatal/i.test(String(g.message || ""));
+  return U.is2207085 ? U.is2207085(e) : (() => {
+    const g = (e && e.ig) || {};
+    return Number(g.error_subcode) === 2207085 || /2207085/.test(String(e && e.message)) || (Number(g.code) === -1) || /fatal/i.test(String(g.message || ""));
+  })();
 }
 async function findPostedMedia(uid, it) {
   try {
-    const j = await U.ig(`${uid}/media`, { fields: "id,permalink,timestamp,caption,media_product_type", limit: 5 });
-    const since = Math.min(it.finishedAt || Date.now(), it.processingSince || Date.now()) - 2 * 60000;
+    const j = await U.ig(`${uid}/media`, { fields: "id,permalink,timestamp,caption,media_product_type", limit: 8 });
+    const since = Math.min(it.finishedAt || Date.now(), it.processingSince || Date.now()) - 3 * 60000;
     const cap = String(it.caption || "").trim().slice(0, 40);
-    const recent = (j.data || []).filter(m => { const t = Date.parse(m.timestamp); return t >= since && Date.now() - t < 20 * 60000; });
+    const recent = (j.data || []).filter(m => { const t = Date.parse(m.timestamp); return t >= since && Date.now() - t < 30 * 60000; });
     if (!recent.length) return null;
     if (cap) { const hit = recent.find(m => String(m.caption || "").trim().startsWith(cap)); if (hit) return hit; }
     const r = recent.filter(m => !m.media_product_type || /REELS/i.test(m.media_product_type));
-    return r[0] || null; // Reels terbaru setelah container FINISHED
+    return r[0] || null;
   } catch (e) { return null; }
 }
+const META_DASH = "Cek Meta Developer: (1) App Mode = Live, (2) izin instagram_content_publish / instagram_business_content_publish aktif, (3) IG Business/Creator terhubung ke Facebook Page, (4) token Page diawali EAA… masih valid di Graph API Explorer → /debug_token, (5) Roles: akun IG ada di tester/admin jika App masih Development.";
+async function createReelContainer(it) {
+  const { uid, isEAA } = U.IG();
+  const caption = String(it.caption || "").slice(0, 2200);
+  // Jalur A: resumable (paksa) kalau sudah pernah gagal tayang video_url
+  if (it.forceResumable || it.uploadMethod === "resumable") {
+    const c = await U.igResumableReel({ videoUrl: it.videoUrl, caption });
+    it.uploadMethod = "resumable";
+    return c;
+  }
+  // Jalur B: video_url standar — tanpa share_to_feed dulu (beberapa akun 2207085 lebih jarang tanpa flag ini)
+  const paramsNoFeed = { media_type: "REELS", video_url: it.videoUrl, caption };
+  try {
+    const c = await U.ig(`${uid}/media`, paramsNoFeed, "POST");
+    it.uploadMethod = "video_url";
+    it.shareToFeed = false;
+    return c;
+  } catch (e1) {
+    // coba lagi dengan share_to_feed=true (perilaku lama)
+    try {
+      const c = await U.ig(`${uid}/media`, { ...paramsNoFeed, share_to_feed: "true" }, "POST");
+      it.uploadMethod = "video_url";
+      it.shareToFeed = true;
+      return c;
+    } catch (e2) {
+      // Jalur C: kalau token EAA, langsung resumable
+      if (isEAA) {
+        try {
+          const c = await U.igResumableReel({ videoUrl: it.videoUrl, caption });
+          it.uploadMethod = "resumable";
+          return c;
+        } catch (e3) {
+          e2.message = "[tahap buat kiriman] video_url gagal: " + e2.message + " | resumable: " + e3.message;
+          throw e2;
+        }
+      }
+      e1.message = "[tahap buat kiriman] " + (e2.message || e1.message);
+      throw e1;
+    }
+  }
+}
+async function markPosted(it, p, note) {
+  it.mediaId = p.id; it.status = "posted"; it.postedAt = Date.now();
+  it.log = "Sudah tayang ✅" + (it.metaNote ? " (" + it.metaNote + ")" : "") + (p._via ? " via " + p._via : "");
+  if (!it.permalink) { try { const m = await U.ig(p.id, { fields: "permalink" }); it.permalink = m.permalink; } catch (e) {} }
+  let keep = false; try { keep = await T.ttMark(it); } catch (e) { it.tt = { status: "failed", log: e.message }; }
+  try { if (await require("./threads").thMark(it)) keep = true; } catch (e) { it.th = { status: "failed", log: e.message }; }
+  if (!keep) { await U.delBlob(it.videoUrl); it.videoDeleted = true; }
+  await U.notifyWA(`✅ Reels sudah tayang di @tiara_ai_influencer\n${it.permalink || ""}${note || ""}`);
+  return it;
+}
 async function stepItem(it) {
-  const { uid } = U.IG();
+  const { uid, isEAA } = U.IG();
   if (!it.containerId) {
     const bad = it.videoDeleted ? "Video sudah dihapus dari penyimpanan — upload ulang videonya." : await checkVideoUrl(it.videoUrl);
     if (bad) { it.status = "failed"; it.log = "Gagal sebelum kirim ke IG: " + bad; return it; }
     let c;
-    try { c = await U.ig(`${uid}/media`, { media_type: "REELS", video_url: it.videoUrl, caption: String(it.caption || "").slice(0, 2200), share_to_feed: "true" }, "POST"); }
-    catch (e) { e.message = "[tahap buat kiriman] " + e.message; throw e; }
-    it.containerId = c.id; it.status = "processing"; it.processingSince = Date.now(); it.log = "Video dikirim ke Instagram, sedang diproses…";
+    try { c = await createReelContainer(it); }
+    catch (e) { e.message = e.message.startsWith("[tahap") ? e.message : "[tahap buat kiriman] " + e.message; throw e; }
+    it.containerId = c.id; it.status = "processing"; it.processingSince = Date.now();
+    it.log = it.uploadMethod === "resumable"
+      ? "Video diunggah ke server Meta (resumable), sedang diproses…"
+      : "Video dikirim ke Instagram (video_url), sedang diproses…";
   }
   if (!it.processingSince) it.processingSince = Date.now();
   for (let i = 0; i < 6; i++) {
@@ -115,31 +171,63 @@ async function stepItem(it) {
       if (!it.finishedAt) it.finishedAt = Date.now();
       let p = null, lastErr = null, note = "";
       if (s.status_code === "FINISHED") {
-        for (let a = 0; a < 3; a++) {
-          try { p = await U.ig(`${uid}/media_publish`, { creation_id: it.containerId }, "POST"); break; }
-          catch (e) { lastErr = e; if (!isMetaInternal(e)) { e.message = "[tahap tayang] " + e.message; throw e; } await new Promise(r => setTimeout(r, 3000 * (a + 1))); }
+        try { p = await U.igPublish(uid, it.containerId); }
+        catch (e) {
+          lastErr = e;
+          // code 24 / 2207006 sering berarti sudah tayang di attempt sebelumnya
+          const sub = Number((e.ig || {}).error_subcode), code = Number((e.ig || {}).code);
+          if (!(isMetaInternal(e) || code === 24 || sub === 2207006)) { e.message = "[tahap tayang] " + e.message; throw e; }
         }
       }
       if (!p) {
         const found = await findPostedMedia(uid, it);
-        if (found) { p = { id: found.id }; it.permalink = found.permalink; note = "\n(Meta error 2207085 tapi Reels sudah tayang)"; it.metaNote = "Meta error 2207085 tapi Reels sudah tayang"; }
-        else {
+        if (found) {
+          p = { id: found.id }; it.permalink = found.permalink;
+          note = "\n(Meta error 2207085 tapi Reels sudah tayang)"; it.metaNote = "Meta error 2207085 tapi Reels sudah tayang";
+        }
+      }
+      if (p) return markPosted(it, p, note);
+
+      // Belum tayang: ganti jalur upload (video_url → resumable) sekali, jangan spam retry publish yang sama
+      if (!it.resumableTried && isEAA && it.uploadMethod !== "resumable") {
+        it.resumableTried = true; it.forceResumable = true;
+        resetContainer(it, "Tayang gagal 2207085 di jalur video_url — mencoba ulang lewat upload resumable ke server Meta…");
+        it.status = "processing";
+        try {
+          const c = await createReelContainer(it);
+          it.containerId = c.id; it.processingSince = Date.now(); it.finishedAt = null;
+          it.log = "Mengunggah ulang via resumable ke Meta…";
+          return it; // lanjut poll di cron / klik berikutnya
+        } catch (e) {
           it.status = "failed";
-          const m = lastErr ? lastErr.message : "status PUBLISHED tapi media tidak ditemukan";
-          resetContainer(it, `[tahap tayang] Meta error internal 2207085 (bug server Instagram, bukan salah video/jadwal). Cek dulu aplikasi Instagram apakah Reels sudah tayang. Kalau belum, tunggu 10–15 menit lalu klik "Posting Sekarang" sekali. Detail: ${m}`);
+          resetContainer(it, `[tahap tayang] Gagal pindah ke resumable setelah 2207085: ${e.message}. ${META_DASH}`);
           return it;
         }
       }
-      it.mediaId = p.id; it.status = "posted"; it.postedAt = Date.now(); it.log = "Sudah tayang ✅" + (it.metaNote ? " (" + it.metaNote + ")" : "");
-      if (!it.permalink) { try { const m = await U.ig(p.id, { fields: "permalink" }); it.permalink = m.permalink; } catch (e) {} }
-      let keep = false; try { keep = await T.ttMark(it); } catch (e) { it.tt = { status: "failed", log: e.message }; }
-      try { if (await require("./threads").thMark(it)) keep = true; } catch (e) { it.th = { status: "failed", log: e.message }; }
-      if (!keep) { await U.delBlob(it.videoUrl); it.videoDeleted = true; } // kalau TikTok ON, video dihapus setelah terkirim ke TikTok
-      await U.notifyWA(`✅ Reels sudah tayang di @tiara_ai_influencer\n${it.permalink || ""}${note}`);
+
+      it.status = "failed";
+      const m = lastErr ? lastErr.message : "media_publish gagal tanpa detail";
+      const tip = isEAA
+        ? "Sistem sudah coba: IPv4, host Graph cadangan, dan upload resumable. Ini error internal Meta (2207085), bukan salah jadwal/video."
+        : "Tokenmu bukan EAA (Page token). Buat Page token Facebook (diawali EAA…) supaya jalur resumable + graph.facebook.com bisa dipakai.";
+      resetContainer(it, `[tahap tayang] Meta 2207085 — publish ditolak server Instagram. ${tip} ${META_DASH} Detail: ${m}`);
+      it.resumableTried = it.resumableTried || false;
       return it;
     }
     const code = String(s.status_code || ""), msg = String(s.status || "");
     if (code === "ERROR" || code === "EXPIRED" || /fatal|error/i.test(msg)) {
+      // Jika container ERROR dan belum coba resumable, coba jalur itu
+      if (!it.resumableTried && U.IG().isEAA && it.uploadMethod !== "resumable") {
+        it.resumableTried = true; it.forceResumable = true;
+        resetContainer(it, `Container ${code}: mencoba jalur resumable…`);
+        it.status = "processing";
+        try {
+          const c = await createReelContainer(it);
+          it.containerId = c.id; it.processingSince = Date.now();
+          it.log = "Container lama error — unggah ulang via resumable…";
+          return it;
+        } catch (e) { /* fall through */ }
+      }
       it.status = "failed";
       resetContainer(it, `Instagram menolak video (status_code: ${code || "-"}, pesan: ${msg || "-"}). Klik "Posting Sekarang" untuk coba ulang dengan kiriman baru. Biasanya video tidak cocok: wajib MP4 H.264 + AAC (bukan HEVC/H.265 dari iPhone), 9:16, 3–90 dtk, ≤300MB, 23–60fps. Export ulang lewat CapCut (1080x1920, 30fps) lalu upload lagi.`);
       return it;
@@ -160,7 +248,15 @@ async function publishDue(onlyId) {
   for (const it of q) {
     const due = onlyId ? it.id === onlyId : (it.status === "scheduled" && it.scheduledAt <= Date.now()) || it.status === "processing";
     if (!due || it.status === "posted") continue;
-    if (onlyId && it.status === "failed") { it.tries = 0; it.stuckRetries = 0; resetContainer(it, "Coba ulang manual…"); it.status = "processing"; }
+    if (onlyId && it.status === "failed") {
+      it.tries = 0; it.stuckRetries = 0;
+      const preferResumable = U.IG().isEAA && /2207085|resumable|Fatal/i.test(String(it.log || ""));
+      resetContainer(it, preferResumable ? "Coba ulang manual lewat upload resumable…" : "Coba ulang manual…");
+      it.forceResumable = !!preferResumable;
+      it.resumableTried = false;
+      it.uploadMethod = preferResumable ? "resumable" : null;
+      it.status = "processing";
+    }
     try { await stepItem(it); } catch (e) {
       it.tries = (it.tries || 0) + 1; it.log = "Error IG: " + e.message;
       if (it.tries >= 3) { it.status = "failed"; it.containerId = null; it.processingSince = null; it.finishedAt = null; it.metaNote = null; }
