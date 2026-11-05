@@ -184,7 +184,16 @@ Tulis captionnya saja tanpa penjelasan.`);
         if (b.op === "connect") return res.json({ url: await T.ttAuthUrl() });
         if (b.op === "settings") { const s = await T.ttSettings(); s.enabled = !!b.enabled; s.privacy = ["SELF_ONLY", "PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR"].includes(b.privacy) ? b.privacy : "SELF_ONLY"; await db.set("tt_settings", s); }
         if (b.op === "disconnect") await db.del("tt_token");
-        if (b.op === "retry") { const qq = (await db.get("queue")) || []; const it = qq.find(x => x.id === b.id); if (!it || it.videoDeleted) return res.status(400).json({ error: "Video sudah tidak tersimpan" }); it.tt = { status: "pending", log: "Dikirim ulang" }; await db.set("queue", qq); return res.json({ result: await T.tiktokDue(b.id) }); }
+        if (b.op === "retry") {
+          const qq = (await db.get("queue")) || []; const it = qq.find(x => x.id === b.id);
+          if (!it) return res.status(400).json({ error: "Item tidak ada" });
+          if (it.videoDeleted && !(it.source === "ig" && it.mediaId)) return res.status(400).json({ error: "Video sudah tidak tersimpan" });
+          if (it.source === "ig" && it.mediaId) {
+            try { const m = await U.ig(it.mediaId, { fields: "media_url" }); if (m.media_url) { it.videoUrl = m.media_url; it.urlAt = Date.now(); it.videoDeleted = false; } } catch (e) {}
+          }
+          it.tt = { status: "pending", log: "Dikirim ulang", caption: it.tt && it.tt.caption, tries: 0 };
+          await db.set("queue", qq); return res.json({ result: await T.tiktokDue(b.id) });
+        }
       }
       return res.json(await T.ttStatus());
     }
@@ -193,6 +202,20 @@ Tulis captionnya saja tanpa penjelasan.`);
       if (req.method === "POST") {
         if (b.op === "settings") await MR.setEnabled(!!b.enabled);
         if (b.op === "run") { const r = await MR.cronJobs(); const TT = await T.tiktokDue().catch(e => ({ error: e.message })); const TR = await TH.threadsDue().catch(e => ({ error: e.message })); return res.json({ result: r, tt: TT, th: TR, ...(await MR.mirrorStatus()) }); }
+        if (b.op === "retryTh" || b.op === "retryTt") {
+          const qq = (await db.get("queue")) || []; const it = qq.find(x => x.id === b.id);
+          if (!it) return res.status(400).json({ error: "Item tidak ada" });
+          if (it.videoDeleted && !(it.source === "ig" && it.mediaId)) return res.status(400).json({ error: "Video sudah tidak tersimpan" });
+          if (it.source === "ig" && it.mediaId) {
+            try { const m = await U.ig(it.mediaId, { fields: "media_url" }); if (m.media_url) { it.videoUrl = m.media_url; it.urlAt = Date.now(); it.videoDeleted = false; } } catch (e) {}
+          }
+          if (b.op === "retryTh") {
+            const cap = it.th && it.th.caption; it.th = { status: "pending", log: "Dikirim ulang", caption: cap, tries: 0 };
+            await db.set("queue", qq); return res.json({ result: await TH.threadsDue(), ...(await MR.mirrorStatus()) });
+          }
+          const cap = it.tt && it.tt.caption; it.tt = { status: "pending", log: "Dikirim ulang", caption: cap, tries: 0 };
+          await db.set("queue", qq); return res.json({ result: await T.tiktokDue(b.id), ...(await MR.mirrorStatus()) });
+        }
       }
       return res.json(await MR.mirrorStatus());
     }
@@ -210,7 +233,16 @@ Tulis captionnya saja tanpa penjelasan.`);
         if (b.op === "postnow") return res.json({ post: await TH.textNow(!!b.review), ...(await TH.thStatus()) });
         if (b.op === "sendtext") return res.json({ post: await TH.sendText(b.id, b.text), ...(await TH.thStatus()) });
         if (b.op === "deltext") { const l = (await db.get("th_texts")) || []; await db.set("th_texts", l.filter(x => x.id !== b.id)); }
-        if (b.op === "retry") { const qq = (await db.get("queue")) || []; const it = qq.find(x => x.id === b.id); if (!it || it.videoDeleted) return res.status(400).json({ error: "Video sudah tidak tersimpan" }); it.th = { status: "pending", log: "Dikirim ulang" }; await db.set("queue", qq); return res.json({ result: await TH.threadsDue() }); }
+        if (b.op === "retry") {
+          const qq = (await db.get("queue")) || []; const it = qq.find(x => x.id === b.id);
+          if (!it) return res.status(400).json({ error: "Item tidak ada" });
+          if (it.videoDeleted && !(it.source === "ig" && it.mediaId)) return res.status(400).json({ error: "Video sudah tidak tersimpan" });
+          if (it.source === "ig" && it.mediaId) {
+            try { const m = await U.ig(it.mediaId, { fields: "media_url" }); if (m.media_url) { it.videoUrl = m.media_url; it.urlAt = Date.now(); it.videoDeleted = false; } } catch (e) {}
+          }
+          const cap = it.th && it.th.caption; it.th = { status: "pending", log: "Dikirim ulang", caption: cap, tries: 0 };
+          await db.set("queue", qq); return res.json({ result: await TH.threadsDue() });
+        }
       }
       return res.json(await TH.thStatus());
     }

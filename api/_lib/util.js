@@ -286,4 +286,13 @@ async function delBlob(url) {
   if (!url || !process.env.BLOB_READ_WRITE_TOKEN || !/blob\.vercel-storage\.com/.test(url)) return;
   try { const { del } = require("@vercel/blob"); await del(url); } catch (e) { console.error("del blob", e.message); }
 }
-module.exports = { DURS, DEFAULT_CONFIG, getConfig, gemini, geminiFile, IG, ig, igAt, igPublish, igResumableReel, is2207085, notifyWA, notifyTG, ADMIN_EMAILS, makeSession, readSession, safeEq, body, code, rp, str, baseUrl, wib, clean, delBlob, MODELS };
+/** Upload buffer/stream ke Vercel Blob (URL publik stabil). Dipakai Mirror Reels agar Threads tidak gagal unduh CDN IG. */
+async function putBlob(data, pathname, contentType) {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) throw new Error("BLOB_READ_WRITE_TOKEN belum diisi di Vercel");
+  const { put } = require("@vercel/blob");
+  const r = await put(pathname || ("mirror/" + Date.now() + ".mp4"), data, {
+    access: "public", contentType: contentType || "video/mp4", addRandomSuffix: true, token: process.env.BLOB_READ_WRITE_TOKEN
+  });
+  return r.url;
+}
+module.exports = { DURS, DEFAULT_CONFIG, getConfig, gemini, geminiFile, IG, ig, igAt, igPublish, igResumableReel, is2207085, notifyWA, notifyTG, ADMIN_EMAILS, makeSession, readSession, safeEq, body, code, rp, str, baseUrl, wib, clean, delBlob, putBlob, MODELS };

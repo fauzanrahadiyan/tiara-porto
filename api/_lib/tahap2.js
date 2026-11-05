@@ -65,7 +65,10 @@ async function ttMark(it) {
 async function ttStep(it) {
   const s = await ttSettings();
   if (it.tt.status === "pending") {
-    if (it.videoDeleted) { it.tt = { status: "failed", log: "Video sudah dihapus dari penyimpanan" }; return it; }
+    if (it.videoDeleted && !(it.source === "ig" && it.mediaId)) { it.tt = { status: "failed", log: "Video sudah dihapus dari penyimpanan" }; return it; }
+    if (it.source === "ig" && it.mediaId && (it.videoDeleted || Date.now() - (it.urlAt || 0) > 25 * 60000 || !it.videoUrl)) {
+      try { const m = await U.ig(it.mediaId, { fields: "media_url" }); if (m.media_url) { it.videoUrl = m.media_url; it.urlAt = Date.now(); it.videoDeleted = false; } } catch (e) {}
+    }
     const buf = Buffer.from(await (await fetch(it.videoUrl)).arrayBuffer()); const size = buf.length;
     let chunk = size, total = 1;
     if (size > 64 * 1024 * 1024) { chunk = 10 * 1024 * 1024; total = Math.floor(size / chunk); }
@@ -101,7 +104,13 @@ async function tiktokDue(onlyId) {
     if (!it.tt || !["pending", "processing"].includes(it.tt.status)) continue;
     if (onlyId && it.id !== onlyId) continue;
     try { await ttStep(it); } catch (e) { it.tt.tries = (it.tt.tries || 0) + 1; it.tt.log = e.message; if (it.tt.tries >= 3) { it.tt.status = "failed"; await U.notifyWA("⚠️ Gagal kirim ke TikTok: " + e.message.slice(0, 200)); } }
-    if (["posted", "failed"].includes(it.tt.status) && !it.videoDeleted && !(it.th && ["pending", "processing"].includes(it.th.status))) { await U.delBlob(it.videoUrl); it.videoDeleted = true; }
+    if (["posted", "failed"].includes(it.tt.status) && !(it.th && ["pending", "processing"].includes(it.th.status))) {
+      if (it.source === "ig") {
+        if (it.tt.status === "posted" && it.hostedBlob) { await U.delBlob(it.hostedBlob); delete it.hostedBlob; }
+      } else if (!it.videoDeleted) {
+        await U.delBlob(it.videoUrl); it.videoDeleted = true;
+      }
+    }
     done.push({ id: it.id, tt: it.tt.status, log: it.tt.log });
     if (done.length >= 1) break; // 1 video per putaran (batas waktu)
   }

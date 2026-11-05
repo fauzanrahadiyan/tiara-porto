@@ -70,22 +70,67 @@ Caption asli: """${String(cap || "").slice(0, 1500)}"""`);
     return t.trim().slice(0, 500);
   } catch (e) { return String(cap || "").slice(0, 500); }
 }
+// CDN Instagram sering bikin Threads UNKNOWN — unduh & simpan ke Blob publik yang stabil.
+async function ensureThreadsVideoUrl(it) {
+  // Pakai ulang Blob kita kalau masih valid (urlAt>0). Soft-retry set urlAt=0 agar unduh ulang.
+  if (it.hostedBlob && it.videoUrl === it.hostedBlob && (it.urlAt || 0) > 0 && /blob\.vercel-storage\.com/.test(it.videoUrl)) {
+    return it.videoUrl;
+  }
+  if (it.source === "ig" && it.mediaId) {
+    try {
+      const m = await U.ig(it.mediaId, { fields: "media_url" });
+      if (m.media_url) { it.videoUrl = m.media_url; it.urlAt = Date.now(); it.videoDeleted = false; }
+    } catch (e) { /* pakai URL lama kalau refresh gagal */ }
+  }
+  const cur = it.videoUrl || "";
+  // Sudah di Blob publik kita → Threads bisa unduh. CDN IG perlu di-rehost.
+  if (/blob\.vercel-storage\.com/.test(cur)) { it.hostedBlob = it.hostedBlob || cur; return cur; }
+  if (!process.env.BLOB_READ_WRITE_TOKEN) return cur; // fallback CDN kalau Blob belum diatur
+  if (!cur) throw new Error("URL video kosong");
+  const r = await fetch(cur); if (!r.ok) throw new Error("Gagal unduh video (" + r.status + ") untuk kirim ke Threads");
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length < 50 * 1024) throw new Error("File video terlalu kecil/rusak (" + Math.round(buf.length / 1024) + "KB)");
+  const url = await U.putBlob(buf, "mirror-th/" + (it.id || Date.now()) + ".mp4", "video/mp4");
+  if (it.hostedBlob && it.hostedBlob !== url) await U.delBlob(it.hostedBlob);
+  it.hostedBlob = url; it.videoUrl = url; it.urlAt = Date.now(); it.videoDeleted = false;
+  return url;
+}
 async function threadsDue() {
   const q = (await db.get("queue")) || []; const done = [];
   for (const it of q) {
     if (!it.th || !["pending", "processing"].includes(it.th.status)) continue;
     try {
       if (it.th.status === "pending") {
-        if (it.videoDeleted) throw Object.assign(new Error("Video sudah dihapus dari penyimpanan"), { fatal: 1 });
+        const canIg = it.source === "ig" && it.mediaId;
+        if (it.videoDeleted && !canIg) throw Object.assign(new Error("Video sudah dihapus dari penyimpanan"), { fatal: 1 });
         it.th.caption = it.th.caption || await thCaption(it.caption);
-        const c = await th("me/threads", { media_type: "VIDEO", video_url: it.videoUrl, text: it.th.caption }, "POST");
+        const videoUrl = await ensureThreadsVideoUrl(it);
+        const c = await th("me/threads", { media_type: "VIDEO", video_url: videoUrl, text: it.th.caption }, "POST");
         it.th = { ...it.th, status: "processing", container: c.id, log: "Diproses Threads…" };
       }
       const r = await publish({ creation_id: it.th.container });
       if (r.id) { it.th.status = "posted"; it.th.postId = r.id; it.th.at = Date.now(); it.th.log = "Terposting di Threads ✅"; }
-    } catch (e) { it.th.tries = (it.th.tries || 0) + 1; it.th.log = e.message; if (e.fatal || it.th.tries >= 3 || /menolak/.test(e.message)) it.th.status = "failed"; }
+    } catch (e) {
+      it.th.tries = (it.th.tries || 0) + 1; it.th.log = e.message;
+      const soft = /UNKNOWN|FAILED_DOWNLOADING_VIDEO/i.test(e.message);
+      const hardMenolak = /menolak/.test(e.message) && !soft;
+      if (e.fatal || hardMenolak || it.th.tries >= (soft ? 2 : 3)) {
+        it.th.status = "failed";
+      } else {
+        // auto-retry: container baru + URL baru (CDN/Blob di-refresh)
+        it.th.status = "pending"; delete it.th.container; it.urlAt = 0;
+        it.th.log = e.message + " — coba ulang otomatis…";
+      }
+    }
     const ttBusy = it.tt && ["pending", "processing"].includes(it.tt.status);
-    if (["posted", "failed"].includes(it.th.status) && !ttBusy && !it.videoDeleted) { await U.delBlob(it.videoUrl); it.videoDeleted = true; }
+    // Mirror IG: jangan tandai videoDeleted (CDN/mediaId masih bisa dipakai ulang). Blob host kita boleh dibersihkan setelah sukses.
+    if (["posted", "failed"].includes(it.th.status) && !ttBusy) {
+      if (it.source === "ig") {
+        if (it.th.status === "posted" && it.hostedBlob) { await U.delBlob(it.hostedBlob); delete it.hostedBlob; }
+      } else if (!it.videoDeleted) {
+        await U.delBlob(it.videoUrl); it.videoDeleted = true;
+      }
+    }
     done.push({ id: it.id, th: it.th.status, log: it.th.log }); break; // 1 per putaran
   }
   if (done.length) await db.set("queue", q);
