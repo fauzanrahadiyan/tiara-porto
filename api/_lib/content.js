@@ -63,12 +63,27 @@ async function autoSchedule() {
 }
 
 // ---------- PUBLISH REELS (bertahap, aman untuk batas waktu serverless) ----------
+async function checkVideoUrl(url) {
+  if (!url) return "Link video kosong — upload ulang videonya.";
+  try {
+    let r = await fetch(url, { method: "HEAD" });
+    if (r.status === 405 || r.status === 403) r = await fetch(url, { method: "GET", headers: { Range: "bytes=0-0" } });
+    if (r.status === 404) return "Video sudah tidak ada di penyimpanan (404) — upload ulang videonya.";
+    if (!r.ok && r.status !== 206) return "Link video tidak bisa dibuka Instagram (HTTP " + r.status + ") — upload ulang videonya.";
+    return null;
+  } catch (e) { return "Link video tidak bisa diakses: " + e.message; }
+}
+function resetContainer(it, why) { it.containerId = null; it.processingSince = null; it.log = why; }
+const STUCK_MS = 45 * 6e4;
 async function stepItem(it) {
   const { uid } = U.IG();
   if (!it.containerId) {
+    const bad = it.videoDeleted ? "Video sudah dihapus dari penyimpanan — upload ulang videonya." : await checkVideoUrl(it.videoUrl);
+    if (bad) { it.status = "failed"; it.log = "Gagal sebelum kirim ke IG: " + bad; return it; }
     const c = await U.ig(`${uid}/media`, { media_type: "REELS", video_url: it.videoUrl, caption: it.caption || "", share_to_feed: "true" }, "POST");
-    it.containerId = c.id; it.status = "processing"; it.log = "Video dikirim ke Instagram, sedang diproses…";
+    it.containerId = c.id; it.status = "processing"; it.processingSince = Date.now(); it.log = "Video dikirim ke Instagram, sedang diproses…";
   }
+  if (!it.processingSince) it.processingSince = Date.now();
   for (let i = 0; i < 6; i++) {
     const s = await U.ig(it.containerId, { fields: "status_code,status" });
     if (s.status_code === "FINISHED") {
@@ -81,8 +96,19 @@ async function stepItem(it) {
       await U.notifyWA(`✅ Reels sudah tayang di @tiara_ai_influencer\n${it.permalink || ""}`);
       return it;
     }
-    if (s.status_code === "ERROR" || s.status_code === "EXPIRED") { it.status = "failed"; it.log = "Instagram menolak video: " + (s.status || s.status_code); return it; }
+    const code = String(s.status_code || ""), msg = String(s.status || "");
+    if (code === "ERROR" || code === "EXPIRED" || /fatal|error/i.test(msg)) {
+      it.status = "failed";
+      resetContainer(it, `Instagram menolak video (status_code: ${code || "-"}, pesan: ${msg || "-"}). Klik "Posting Sekarang" untuk coba ulang dengan kiriman baru. Kalau tetap gagal, cek format video (MP4, 9:16, 3–90 dtk) atau ganti caption.`);
+      return it;
+    }
+    if (code !== "IN_PROGRESS" && code !== "PUBLISHED") break;
     await new Promise(r => setTimeout(r, 4000));
+  }
+  if (Date.now() - it.processingSince > STUCK_MS) {
+    it.stuckRetries = (it.stuckRetries || 0) + 1;
+    if (it.stuckRetries > 1) { it.status = "failed"; resetContainer(it, "Instagram terlalu lama memproses video (>45 menit, sudah dicoba ulang). Klik \"Posting Sekarang\" untuk coba lagi."); }
+    else resetContainer(it, "Instagram terlalu lama memproses (>45 menit) — dikirim ulang otomatis di cron berikutnya.");
   }
   return it; // masih diproses, lanjut di cron berikutnya
 }
@@ -92,7 +118,11 @@ async function publishDue(onlyId) {
   for (const it of q) {
     const due = onlyId ? it.id === onlyId : (it.status === "scheduled" && it.scheduledAt <= Date.now()) || it.status === "processing";
     if (!due || it.status === "posted") continue;
-    try { await stepItem(it); } catch (e) { it.tries = (it.tries || 0) + 1; it.log = e.message; if (it.tries >= 3) it.status = "failed"; }
+    if (onlyId && it.status === "failed") { it.tries = 0; it.stuckRetries = 0; resetContainer(it, "Coba ulang manual…"); it.status = "processing"; }
+    try { await stepItem(it); } catch (e) {
+      it.tries = (it.tries || 0) + 1; it.log = "Error IG: " + e.message;
+      if (it.tries >= 3) { it.status = "failed"; it.containerId = null; it.processingSince = null; }
+    }
     done.push({ id: it.id, status: it.status, log: it.log });
     if (done.length >= 2) break;
   }
